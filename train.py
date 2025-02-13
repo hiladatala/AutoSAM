@@ -164,6 +164,53 @@ def sam_call(batched_input, sam, dense_embeddings):
     )
     return low_res_masks
 
+class LungSegmentationDataset(Dataset):
+    def __init__(self, image_paths, mask_paths, transform=None):
+        self.image_paths = image_paths
+        self.mask_paths = mask_paths
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        # Load the image (CT scan)
+        image = nib.load(self.image_paths[idx]).get_fdata()  # Load image as numpy array
+        image = zoom(image, (512/image.shape[0], 512/image.shape[1], 115/image.shape[2]))
+
+        # Load the mask (segmentation)
+        mask = nib.load(self.mask_paths[idx]).get_fdata()  # Load mask as numpy array
+        mask = zoom(mask,(512/mask.shape[0], 512/mask.shape[1],115/mask.shape[2]))
+
+        # Normalize image to zero mean and unit variance
+        image = (image - np.mean(image)) / np.std(image)
+
+        # Ensure the mask is binary (either 0 or 1)
+        mask = np.where(mask > 0.1, 1, 0).astype(np.float32)
+
+        # Convert image and mask to PyTorch tensors
+        image = torch.tensor(image, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
+        mask = torch.tensor(mask, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
+
+        return image, mask
+
+
+def split_and_load_dataset(image_dir, mask_dir, val_size=0.2, batch_size=2, transform=None):
+    image_paths = sorted([os.path.join(Dataset_path, f) for f in os.listdir(Dataset_path) if f.endswith('.nii.gz') and not f.startswith('._')])
+    mask_paths = sorted([os.path.join(Masks_path, f) for f in os.listdir(Masks_path) if f.endswith('.nii.gz') and not f.startswith('._')])
+    
+    assert len(image_paths) == len(mask_paths), "The number of images and masks must be the same."
+    
+    train_images, test_images, train_masks, test_masks = train_test_split(image_paths, mask_paths, test_size=0.2, random_state=42)
+    
+    train_dataset = LungSegmentationDataset(train_images, train_masks)
+    test_dataset = LungSegmentationDataset(test_images, test_masks)
+    
+    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
+    
+    return train_loader, val_loader
+
 
 def main(args=None, sam_args=None):
     if torch.cuda.is_available():
@@ -177,19 +224,26 @@ def main(args=None, sam_args=None):
     optimizer = optim.Adam(model.parameters(),
                            lr=float(args['learning_rate']),
                            weight_decay=float(args['WD']))
+    '''
     if args['task'] == 'monu':
         trainset, testset = get_monu_dataset(args, sam_trans=transform)
     elif args['task'] == 'glas':
         trainset, testset = get_glas_dataset(args, sam_trans=transform)
     elif args['task'] == 'polyp':
         trainset, testset = get_polyp_dataset(args, sam_trans=transform)
-    ds = torch.utils.data.DataLoader(trainset, batch_size=int(args['Batch_size']), shuffle=True,
-                                     num_workers=int(args['nW']), drop_last=True)
-    ds_val = torch.utils.data.DataLoader(testset, batch_size=1, shuffle=False,
-                                         num_workers=int(args['nW_eval']), drop_last=False)
+        '''
+
+      ds, ds_val = split_and_load_dataset(
+        args['dataset_path'], 
+        args['mask_path'], 
+        val_size=0.2, 
+        batch_size=int(args['Batch_size']),
+        transform=transform
+    )
     best = 0
     path_best = 'results/gpu' + str(args['folder']) + '/best.csv'
     f_best = open(path_best, 'w')
+
     for epoch in range(int(args['epoches'])):
         train_single_epoch(ds, model.train(), sam.eval(), optimizer, transform, epoch)
         with torch.no_grad():
@@ -212,6 +266,10 @@ if __name__ == '__main__':
     parser.add_argument('-nW_eval', '--nW_eval', default=0, help='evaluation iteration', required=False)
     parser.add_argument('-WD', '--WD', default=1e-4, help='evaluation iteration', required=False)
     parser.add_argument('-task', '--task', default='glas', help='evaluation iteration', required=False)
+    
+    parser.add_argument('-dataset_path', '--dataset_path', default='/content/drive/My Drive/Msc/DeepLearning/Project/Task06_Lung/imagesTr', help='Path to the dataset', required=True)
+    parser.add_argument('-mask_path', '--mask_path', default='/content/drive/My Drive/Msc/DeepLearning/Project/Task06_Lung/labelsTr', help='Path to the mask dataset', required=True)
+    
     parser.add_argument('-depth_wise', '--depth_wise', default=False, help='image size', required=False)
     parser.add_argument('-order', '--order', default=85, help='image size', required=False)
     parser.add_argument('-Idim', '--Idim', default=512, help='image size', required=False)

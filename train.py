@@ -217,7 +217,7 @@ def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
-    return train_loader, val_loader
+    return train_loader, test_loader
 
 
 def main(args=None, sam_args=None):

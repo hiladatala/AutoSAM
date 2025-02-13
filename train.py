@@ -107,7 +107,7 @@ def train_single_epoch(ds, model, sam, optimizer, transform, epoch):
     for ix, (imgs, gts, original_sz, img_sz) in enumerate(pbar):
         orig_imgs = imgs.to(sam.device)
         gts = gts.to(sam.device)
-        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim), mode='bilinear', align_corners=True)
+        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim), mode='trilinear', align_corners=True)
         dense_embeddings = model(orig_imgs_small)
         batched_input = get_input_dict(orig_imgs, original_sz, img_sz)
         masks = norm_batch(sam_call(batched_input, sam, dense_embeddings))
@@ -280,6 +280,7 @@ if __name__ == '__main__':
     parser.add_argument('-depth_wise', '--depth_wise', default=False, help='image size', required=False)
     parser.add_argument('-order', '--order', default=85, help='image size', required=False)
     parser.add_argument('-Idim', '--Idim', default=512, help='image size', required=False)
+    parser.add_argument('-NunSlicedim', '--NunSlicedim', default=115, help='image size', required=False)
     parser.add_argument('-rotate', '--rotate', default=22, help='image size', required=False)
     parser.add_argument('-scale1', '--scale1', default=0.75, help='image size', required=False)
     parser.add_argument('-scale2', '--scale2', default=1.25, help='image size', required=False)

@@ -193,7 +193,8 @@ class LungSegmentationDataset(Dataset):
         # Load the mask (segmentation)
         mask = nib.load(self.mask_paths[idx]).get_fdata()  # Load mask as numpy array
         mask = zoom(mask,(512/mask.shape[0], 512/mask.shape[1],115/mask.shape[2]))
-
+        
+        '''
         # Normalize image to zero mean and unit variance
         image = (image - np.mean(image)) / np.std(image)
 
@@ -201,6 +202,7 @@ class LungSegmentationDataset(Dataset):
         mask = np.where(mask > 0.1, 1, 0).astype(np.float32)
 
         num_slices = image.shape[2]  # Assuming that slices are along the 3rd dimension
+        '''
         
         # Lists to hold image and mask slices
         image_slices = []
@@ -210,14 +212,17 @@ class LungSegmentationDataset(Dataset):
             image_slice = image[:, :, slice_idx]
             mask_slice = mask[:, :, slice_idx]
 
+            image_slice = (image_slice - np.mean(image_slice)) / np.std(image_slice)
+            mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
+
             image_slice = torch.tensor(image_slice, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
             mask_slice = torch.tensor(mask_slice, dtype=torch.float32).unsqueeze(0) 
 
             image_slices.append(image_slice)
             mask_slices.append(mask_slice)
 
-            image_slices = torch.stack(image_slices)
-            mask_slices = torch.stack(mask_slices)
+        image_slices = torch.stack(image_slices)
+        mask_slices = torch.stack(mask_slices)
 
         return image_slices, mask_slices ,original_sz[0:2], img_sz[0:2]
 

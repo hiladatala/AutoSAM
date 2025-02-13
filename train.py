@@ -108,7 +108,7 @@ def train_single_epoch(ds, model, sam, optimizer, transform, epoch):
     for ix, (imgs, gts, original_sz, img_sz) in enumerate(pbar):
         orig_imgs = imgs.to(sam.device)
         gts = gts.to(sam.device)
-        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim,NumSliceDim), mode='trilinear', align_corners=True)
+        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim), mode='bilinear', align_corners=True)
         dense_embeddings = model(orig_imgs_small)
         batched_input = get_input_dict(orig_imgs, original_sz, img_sz)
         masks = norm_batch(sam_call(batched_input, sam, dense_embeddings))
@@ -134,7 +134,7 @@ def inference_ds(ds, model, sam, transform, epoch, args):
     for imgs, gts, original_sz, img_sz in pbar:
         orig_imgs = imgs.to(sam.device)
         gts = gts.to(sam.device)
-        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim,NumSliceDim), mode='trilinear', align_corners=True)
+        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim), mode='bilinear', align_corners=True)
         dense_embeddings = model(orig_imgs_small)
         batched_input = get_input_dict(orig_imgs, original_sz, img_sz)
         masks = norm_batch(sam_call(batched_input, sam, dense_embeddings))

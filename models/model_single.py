@@ -13,7 +13,7 @@ class Decoder(nn.Module):
                                func='relu', drop=0).cuda()
         self.up3 = UpBlockSkip(full_features[1] + full_features[0], full_features[0],
                                func='relu', drop=0).cuda()
-        self.Upsample = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
+        self.Upsample = nn.Upsample(scale_factor=2, mode='bilinear')
         self.final = CNNBlock(full_features[0], out, kernel_size=3, drop=0)
 
     def forward(self, x):
@@ -162,7 +162,7 @@ class ModelSparseEmb(nn.Module):
         sparse_embeddings = self.decoder(z)
         return sparse_embeddings
 
-'''
+
 class LayerNorm2d(nn.Module):
     def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
         super().__init__()
@@ -176,39 +176,17 @@ class LayerNorm2d(nn.Module):
         x = (x - u) / torch.sqrt(s + self.eps)
         x = self.weight[:, None, None] * x + self.bias[:, None, None]
         return x
-'''
-
-class LayerNorm2d(nn.Module):
-    def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(num_channels))
-        self.bias = nn.Parameter(torch.zeros(num_channels))
-        self.eps = eps
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Calculate the mean and variance over the spatial dimensions (depth, height, width)
-        mean = x.mean(dim=[2, 3, 4], keepdim=True)  # Mean across depth, height, width
-        var = ((x - mean) ** 2).mean(dim=[2, 3, 4], keepdim=True)  # Variance across depth, height, width
-        
-        # Normalize the input
-        x = (x - mean) / torch.sqrt(var + self.eps)
-        
-        # Apply the scale and bias (weight and bias)
-        x = self.weight.view(1, -1, 1, 1, 1) * x + self.bias.view(1, -1, 1, 1, 1)
-        
-        return x
-
 
 
 class MaskEncoder(nn.Module):
     def __init__(self):
         super(MaskEncoder, self).__init__()
-        self.conv1 = nn.Conv3d(1, 4, kernel_size=2, stride=2)
+        self.conv1 = nn.Conv2d(1, 4, kernel_size=2, stride=2)
         self.norm1 = LayerNorm2d(4)
         self.gelu = nn.GELU()
-        self.conv2 = nn.Conv3d(4, 16, kernel_size=2, stride=2)
+        self.conv2 = nn.Conv2d(4, 16, kernel_size=2, stride=2)
         self.norm2 = LayerNorm2d(16)
-        self.conv3 = nn.Conv3d(16, 256, kernel_size=1)
+        self.conv3 = nn.Conv2d(16, 256, kernel_size=1)
 
     def forward(self, mask):
         z = self.conv1(mask)
@@ -224,12 +202,12 @@ class MaskEncoder(nn.Module):
 class ModelH(nn.Module):
     def __init__(self):
         super(ModelH, self).__init__()
-        self.conv1 = nn.ConvTranspose3d(256, 64, 3, stride=2, padding=1)
+        self.conv1 = nn.ConvTranspose2d(256, 64, 3, stride=2, padding=1)
         self.norm1 = LayerNorm2d(64)
         self.gelu = nn.GELU()
-        self.conv2 = nn.ConvTranspose3d(64, 16, kernel_size=2, stride=2)
+        self.conv2 = nn.ConvTranspose2d(64, 16, kernel_size=2, stride=2)
         self.norm2 = LayerNorm2d(16)
-        self.conv3 = nn.Conv3d(16, 1, kernel_size=1)
+        self.conv3 = nn.Conv2d(16, 1, kernel_size=1)
 
     def forward(self, mask):
         z = self.conv1(mask, output_size=(128, 128))
@@ -285,7 +263,3 @@ if __name__ == "__main__":
     x = torch.randn((4, 256, 64, 64)).cuda()
     z = model(x)
     print(z.shape)
-
-
-
-

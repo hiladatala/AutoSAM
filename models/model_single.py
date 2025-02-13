@@ -224,12 +224,12 @@ class MaskEncoder(nn.Module):
 class ModelH(nn.Module):
     def __init__(self):
         super(ModelH, self).__init__()
-        self.conv1 = nn.ConvTranspose2d(256, 64, 3, stride=2, padding=1)
+        self.conv1 = nn.ConvTranspose3d(256, 64, 3, stride=2, padding=1)
         self.norm1 = LayerNorm2d(64)
         self.gelu = nn.GELU()
-        self.conv2 = nn.ConvTranspose2d(64, 16, kernel_size=2, stride=2)
+        self.conv2 = nn.ConvTranspose3d(64, 16, kernel_size=2, stride=2)
         self.norm2 = LayerNorm2d(16)
-        self.conv3 = nn.Conv2d(16, 1, kernel_size=1)
+        self.conv3 = nn.Conv3d(16, 1, kernel_size=1)
 
     def forward(self, mask):
         z = self.conv1(mask, output_size=(128, 128))

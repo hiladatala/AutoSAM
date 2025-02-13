@@ -214,10 +214,10 @@ def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=
     train_dataset = LungSegmentationDataset(train_images, train_masks)
     test_dataset = LungSegmentationDataset(test_images, test_masks)
     
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    #train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    #test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
-    return train_loader, test_loader
+    return train_dataset, test_dataset
 
 
 def main(args=None, sam_args=None):
@@ -241,7 +241,10 @@ def main(args=None, sam_args=None):
         trainset, testset = get_polyp_dataset(args, sam_trans=transform)
         '''
 
-    ds, ds_val = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
+    trainset, testset = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
+    ds = torch.utils.data.DataLoader(trainset, batch_size=int(args['Batch_size']), shuffle=True,num_workers=int(args['nW']), drop_last=True)
+    ds_val = torch.utils.data.DataLoader(testset, batch_size=1, shuffle=False,num_workers=int(args['nW_eval']), drop_last=False)
+    
     best = 0
     path_best = 'results/gpu' + str(args['folder']) + '/best.csv'
     f_best = open(path_best, 'w')

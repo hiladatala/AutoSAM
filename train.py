@@ -233,13 +233,7 @@ def main(args=None, sam_args=None):
         trainset, testset = get_polyp_dataset(args, sam_trans=transform)
         '''
 
-    ds, ds_val = split_and_load_dataset(
-        args['dataset_path'], 
-        args['mask_path'], 
-        val_size=0.2, 
-        batch_size=int(args['Batch_size']),
-        transform=transform
-    )
+    ds, ds_val = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
     best = 0
     path_best = 'results/gpu' + str(args['folder']) + '/best.csv'
     f_best = open(path_best, 'w')

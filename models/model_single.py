@@ -181,12 +181,12 @@ class LayerNorm2d(nn.Module):
 class MaskEncoder(nn.Module):
     def __init__(self):
         super(MaskEncoder, self).__init__()
-        self.conv1 = nn.Conv2d(1, 4, kernel_size=2, stride=2)
+        self.conv1 = nn.Conv3d(1, 4, kernel_size=2, stride=2)
         self.norm1 = LayerNorm2d(4)
         self.gelu = nn.GELU()
-        self.conv2 = nn.Conv2d(4, 16, kernel_size=2, stride=2)
+        self.conv2 = nn.Conv3d(4, 16, kernel_size=2, stride=2)
         self.norm2 = LayerNorm2d(16)
-        self.conv3 = nn.Conv2d(16, 256, kernel_size=1)
+        self.conv3 = nn.Conv3d(16, 256, kernel_size=1)
 
     def forward(self, mask):
         z = self.conv1(mask)

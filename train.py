@@ -200,9 +200,9 @@ class LungSegmentationDataset(Dataset):
 
         # Ensure the mask is binary (either 0 or 1)
         mask = np.where(mask > 0.1, 1, 0).astype(np.float32)
+        '''
 
         num_slices = image.shape[2]  # Assuming that slices are along the 3rd dimension
-        '''
         
         # Lists to hold image and mask slices
         image_slices = []

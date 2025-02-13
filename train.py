@@ -291,7 +291,7 @@ if __name__ == '__main__':
     args['vis_folder'] = os.path.join('results', 'gpu' + args['folder'], 'vis')
     os.mkdir(args['vis_folder'])
     sam_args = {
-        'sam_checkpoint': "cp/sam_vit_h.pth",
+        'sam_checkpoint': "/content/drive/My Drive/Msc/DeepLearning/Project/sam_vit_h.pth",
         'model_type': "vit_h",
         'generator_args': {
             'points_per_side': 8,

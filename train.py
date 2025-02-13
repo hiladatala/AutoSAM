@@ -175,7 +175,7 @@ def sam_call(batched_input, sam, dense_embeddings):
     return low_res_masks
 
 class LungSegmentationDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, transform=None,batch_size = 3):
+    def __init__(self, image_paths, mask_paths,batch_size, transform=None):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.transform = transform
@@ -243,8 +243,8 @@ def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=
     
     train_images, test_images, train_masks, test_masks = train_test_split(image_paths, mask_paths, test_size=val_size, random_state=42)
     
-    train_dataset = LungSegmentationDataset(train_images, train_masks)
-    test_dataset = LungSegmentationDataset(test_images, test_masks)
+    train_dataset = LungSegmentationDataset(train_images, train_masks,batch_size)
+    test_dataset = LungSegmentationDataset(test_images, test_masks,batch_size)
     
     #train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     #test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)

@@ -175,7 +175,7 @@ def sam_call(batched_input, sam, dense_embeddings):
     return low_res_masks
 
 class LungSegmentationDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, transform=None):
+    def __init__(self, image_paths, mask_paths, transform=None,batch_size = 3):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.transform = transform
@@ -223,6 +223,14 @@ class LungSegmentationDataset(Dataset):
 
         image_slices = torch.stack(image_slices)
         mask_slices = torch.stack(mask_slices)
+
+        # Now we select a batch of slices based on batch size
+        start_idx = np.random.randint(0, num_slices - self.batch_size + 1)  # Randomly pick a starting index for batch
+        end_idx = start_idx + self.batch_size
+
+        # Select the slices for the current batch
+        image_batch = image_slices[start_idx:end_idx]  # Shape: (batch_size, 1, H, W)
+        mask_batch = mask_slices[start_idx:end_idx]    # Shape: (batch_size, H, W)
 
         return image_slices, mask_slices ,original_sz[0:2], img_sz[0:2]
 

@@ -179,6 +179,7 @@ class LungSegmentationDataset(Dataset):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.transform = transform
+        self.batch_size = batch_size
 
     def __len__(self):
         return len(self.image_paths)

@@ -202,7 +202,7 @@ class LungSegmentationDataset(Dataset):
         image = torch.tensor(image, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
         mask = torch.tensor(mask, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
 
-        return image, mask ,original_sz,img_sz
+        return image, mask ,original_sz, img_sz
 
 
 def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):

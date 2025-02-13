@@ -215,8 +215,8 @@ class LungSegmentationDataset(Dataset):
             image_slice = (image_slice - np.mean(image_slice)) / np.std(image_slice)
             mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
 
-            image_slice = torch.tensor(image_slice, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
-            mask_slice = torch.tensor(mask_slice, dtype=torch.float32).unsqueeze(0) 
+            image_slice = torch.tensor(image_slice, dtype=torch.float32)  # Add channel dimension
+            mask_slice = torch.tensor(mask_slice, dtype=torch.float32)
 
             image_slices.append(image_slice)
             mask_slices.append(mask_slice)

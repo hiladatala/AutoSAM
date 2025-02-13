@@ -34,9 +34,9 @@ class DWConvLayer(nn.Sequential):
         kernel = 3
         # print(kernel, 'x', kernel, 'x', out_channels, 'x', out_channels, 'DepthWise')
 
-        self.add_module('dwconv', nn.Conv3d(groups, groups, kernel_size=3,
+        self.add_module('dwconv', nn.Conv2d(groups, groups, kernel_size=3,
                                             stride=stride, padding=1, groups=groups, bias=bias))
-        self.add_module('norm', nn.BatchNorm3d(groups))
+        self.add_module('norm', nn.BatchNorm2d(groups))
 
     def forward(self, x):
         return super().forward(x)
@@ -48,9 +48,9 @@ class ConvLayer(nn.Sequential):
         out_ch = out_channels
         groups = 1
         # print(kernel, 'x', kernel, 'x', in_channels, 'x', out_channels)
-        self.add_module('conv', nn.Conv3d(in_channels, out_ch, kernel_size=kernel,
+        self.add_module('conv', nn.Conv2d(in_channels, out_ch, kernel_size=kernel,
                                           stride=stride, padding=kernel // 2, groups=groups, bias=bias))
-        self.add_module('norm', nn.BatchNorm3d(out_ch))
+        self.add_module('norm', nn.BatchNorm2d(out_ch))
         self.add_module('relu', nn.ReLU6(True))
 
     def forward(self, x):
@@ -175,7 +175,7 @@ class HarDNet(nn.Module):
 
         # Maxpooling or DWConv3x3 downsampling
         if max_pool:
-            self.base.append(nn.MaxPool3d(kernel_size=3, stride=2, padding=1))
+            self.base.append(nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
         else:
             self.base.append(DWConvLayer(first_ch[1], first_ch[1], stride=2))
 
@@ -193,14 +193,14 @@ class HarDNet(nn.Module):
             ch = ch_list[i]
             if downSamp[i] == 1:
                 if max_pool:
-                    self.base.append(nn.MaxPool3d(kernel_size=2, stride=2))
+                    self.base.append(nn.MaxPool2d(kernel_size=2, stride=2))
                 else:
                     self.base.append(DWConvLayer(ch, ch, stride=2))
 
         ch = ch_list[blks - 1]
         self.base.append(
             nn.Sequential(
-                nn.AdaptiveAvgPool3d((1, 1)),
+                nn.AdaptiveAvgPool2d((1, 1)),
                 Flatten(),
                 nn.Dropout(drop_rate),
                 nn.Linear(ch, 1000)))
@@ -276,5 +276,3 @@ class HarDNet(nn.Module):
                 x32 = x
                 if inx == len(self.base) - 1:
                     return x2, x4, x8, x16, x32
-
-

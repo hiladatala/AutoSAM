@@ -233,7 +233,7 @@ def main(args=None, sam_args=None):
         trainset, testset = get_polyp_dataset(args, sam_trans=transform)
         '''
 
-      ds, ds_val = split_and_load_dataset(
+    ds, ds_val = split_and_load_dataset(
         args['dataset_path'], 
         args['mask_path'], 
         val_size=0.2, 

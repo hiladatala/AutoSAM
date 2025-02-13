@@ -200,11 +200,26 @@ class LungSegmentationDataset(Dataset):
         # Ensure the mask is binary (either 0 or 1)
         mask = np.where(mask > 0.1, 1, 0).astype(np.float32)
 
-        # Convert image and mask to PyTorch tensors
-        image = torch.tensor(image, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
-        mask = torch.tensor(mask, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
+        num_slices = image.shape[2]  # Assuming that slices are along the 3rd dimension
+        
+        # Lists to hold image and mask slices
+        image_slices = []
+        mask_slices = []
 
-        return image, mask ,original_sz, img_sz
+        for slice_idx in range(num_slices):
+            image_slice = image[:, :, slice_idx]
+            mask_slice = mask[:, :, slice_idx]
+
+            image_slice = torch.tensor(image_slice, dtype=torch.float32).unsqueeze(0)  # Add channel dimension
+            mask_slice = torch.tensor(mask_slice, dtype=torch.float32).unsqueeze(0) 
+
+            image_slices.append(image_slice)
+            mask_slices.append(mask_slice)
+
+            image_slices = torch.stack(image_slices)
+            mask_slices = torch.stack(mask_slices)
+
+        return image_slices, mask_slices ,original_sz[0:2], img_sz[0:2]
 
 
 def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):

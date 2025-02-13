@@ -13,7 +13,7 @@ class Decoder(nn.Module):
                                func='relu', drop=0).cuda()
         self.up3 = UpBlockSkip(full_features[1] + full_features[0], full_features[0],
                                func='relu', drop=0).cuda()
-        self.Upsample = nn.Upsample(scale_factor=2, mode='bilinear')
+        self.Upsample = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
         self.final = CNNBlock(full_features[0], out, kernel_size=3, drop=0)
 
     def forward(self, x):

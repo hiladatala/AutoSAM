@@ -162,7 +162,7 @@ class ModelSparseEmb(nn.Module):
         sparse_embeddings = self.decoder(z)
         return sparse_embeddings
 
-
+'''
 class LayerNorm2d(nn.Module):
     def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
         super().__init__()
@@ -176,6 +176,28 @@ class LayerNorm2d(nn.Module):
         x = (x - u) / torch.sqrt(s + self.eps)
         x = self.weight[:, None, None] * x + self.bias[:, None, None]
         return x
+'''
+
+class LayerNorm2d(nn.Module):
+    def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(num_channels))
+        self.bias = nn.Parameter(torch.zeros(num_channels))
+        self.eps = eps
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Calculate the mean and variance over the spatial dimensions (depth, height, width)
+        mean = x.mean(dim=[2, 3, 4], keepdim=True)  # Mean across depth, height, width
+        var = ((x - mean) ** 2).mean(dim=[2, 3, 4], keepdim=True)  # Variance across depth, height, width
+        
+        # Normalize the input
+        x = (x - mean) / torch.sqrt(var + self.eps)
+        
+        # Apply the scale and bias (weight and bias)
+        x = self.weight.view(1, -1, 1, 1, 1) * x + self.bias.view(1, -1, 1, 1, 1)
+        
+        return x
+
 
 
 class MaskEncoder(nn.Module):

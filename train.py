@@ -195,19 +195,19 @@ class LungSegmentationDataset(Dataset):
         return image, mask
 
 
-def split_and_load_dataset(image_dir, mask_dir, val_size=0.2, batch_size=2, transform=None):
-    image_paths = sorted([os.path.join(Dataset_path, f) for f in os.listdir(Dataset_path) if f.endswith('.nii.gz') and not f.startswith('._')])
-    mask_paths = sorted([os.path.join(Masks_path, f) for f in os.listdir(Masks_path) if f.endswith('.nii.gz') and not f.startswith('._')])
+def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):
+    image_paths = sorted([os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.endswith('.nii.gz') and not f.startswith('._')])
+    mask_paths = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('.nii.gz') and not f.startswith('._')])
     
     assert len(image_paths) == len(mask_paths), "The number of images and masks must be the same."
     
-    train_images, test_images, train_masks, test_masks = train_test_split(image_paths, mask_paths, test_size=0.2, random_state=42)
+    train_images, test_images, train_masks, test_masks = train_test_split(image_paths, mask_paths, test_size=val_size, random_state=42)
     
     train_dataset = LungSegmentationDataset(train_images, train_masks)
     test_dataset = LungSegmentationDataset(test_images, test_masks)
     
-    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return train_loader, val_loader
 

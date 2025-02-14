@@ -54,6 +54,7 @@ class ConvLayer(nn.Sequential):
         self.add_module('relu', nn.ReLU6(True))
 
     def forward(self, x):
+        print(x.shape)
         return super().forward(x)
 
 

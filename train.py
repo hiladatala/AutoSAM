@@ -224,7 +224,8 @@ class LungSegmentationDataset(Dataset):
 
         image_slices = torch.stack(image_slices)
         mask_slices = torch.stack(mask_slices)
-
+        
+        '''
         num_batches = int(num_slices//self.batch_size)
         image_batches = []
         mask_batches = []
@@ -242,8 +243,9 @@ class LungSegmentationDataset(Dataset):
 
         image_batches = torch.stack(image_batches)
         mask_batches = torch.stack(mask_batches)
+        '''
         
-        return image_batches, mask_batches ,original_sz[0:2], img_sz[0:2]
+        return image_slices, mask_slices ,original_sz[0:2], img_sz[0:2]
 
 
 def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):

@@ -225,15 +225,29 @@ class LungSegmentationDataset(Dataset):
         image_slices = torch.stack(image_slices)
         mask_slices = torch.stack(mask_slices)
 
-        # Now we select a batch of slices based on batch size
-        start_idx = np.random.randint(0, num_slices - self.batch_size + 1)  # Randomly pick a starting index for batch
-        end_idx = start_idx + self.batch_size
+        num_batches = num_slices//batch_size
+        image_batches = []
+        mask_batches = []
 
-        # Select the slices for the current batch
-        image_batch = image_slices[start_idx:end_idx]  # Shape: (batch_size, 1, H, W)
-        mask_batch = mask_slices[start_idx:end_idx]    # Shape: (batch_size, H, W)
+         for i in range(num_batches):
+            start_idx = i * self.batch_size  # Start index for the batch
+            end_idx = start_idx + self.batch_size  # End index for the batch
 
-        return image_slices, mask_slices ,original_sz[0:2], img_sz[0:2]
+            # Select the slices for the current batch
+            image_batch = image_slices[start_idx:end_idx]  # Shape: (batch_size, 1, H, W)
+            mask_batch = mask_slices[start_idx:end_idx]    # Shape: (batch_size, H, W)
+
+            image_batches.append(image_batch)
+            mask_batches.append(mask_batch)
+
+        # If there are any remaining slices that don't form a full batch, handle them (optional)
+        if num_slices % self.batch_size != 0:
+            remaining_start_idx = num_batches * self.batch_size
+            remaining_end_idx = num_slices
+            image_batches.append(image_slices[remaining_start_idx:remaining_end_idx])
+            mask_batches.append(mask_slices[remaining_start_idx:remaining_end_idx])
+        
+        return image_batches, mask_batches ,original_sz[0:2], img_sz[0:2]
 
 
 def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):
@@ -244,8 +258,8 @@ def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=
     
     train_images, test_images, train_masks, test_masks = train_test_split(image_paths, mask_paths, test_size=val_size, random_state=42)
     
-    train_dataset = LungSegmentationDataset(train_images, train_masks,batch_size)
-    test_dataset = LungSegmentationDataset(test_images, test_masks,batch_size)
+    train_dataset = LungSegmentationDataset(train_images, train_masks,batch_size =3)
+    test_dataset = LungSegmentationDataset(test_images, test_masks,batch_size = 1)
     
     #train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     #test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -275,8 +289,8 @@ def main(args=None, sam_args=None):
         '''
 
     trainset, testset = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
-    ds = torch.utils.data.DataLoader(trainset, batch_size=int(args['Batch_size']), shuffle=True,num_workers=int(args['nW']), drop_last=True)
-    ds_val = torch.utils.data.DataLoader(testset, batch_size=1, shuffle=False,num_workers=int(args['nW_eval']), drop_last=False)
+    ds = torch.utils.data.DataLoader(trainset, shuffle=True,num_workers=int(args['nW']), drop_last=True)
+    ds_val = torch.utils.data.DataLoader(testset, shuffle=False,num_workers=int(args['nW_eval']), drop_last=False)
     
     best = 0
     path_best = 'results/gpu' + str(args['folder']) + '/best.csv'

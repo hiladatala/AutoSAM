@@ -208,8 +208,8 @@ class LungSegmentationDataset(Dataset):
         mask_slices = np.empty((num_slices, mask.shape[0], mask.shape[1]), dtype=np.float32)
         
         for slice_idx in range(num_slices):
-            image_slice[slice_idx] = image[:, :, slice_idx]
-            mask_slice[slice_idx] = mask[:, :, slice_idx]
+            image_slices[slice_idx] = image[:, :, slice_idx]
+            mask_slices[slice_idx] = mask[:, :, slice_idx]
 
             #image_slices.append(image_slice)
             #mask_slices.append(mask_slice)

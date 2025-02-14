@@ -246,6 +246,9 @@ class LungSegmentationDataset(Dataset):
             remaining_end_idx = num_slices
             image_batches.append(image_slices[remaining_start_idx:remaining_end_idx])
             mask_batches.append(mask_slices[remaining_start_idx:remaining_end_idx])
+
+        image_batches = torch.stack(image_batches)
+        mask_batches = torch.stack(mask_batches)
         
         return image_batches, mask_batches ,original_sz[0:2], img_sz[0:2]
 

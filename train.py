@@ -213,17 +213,15 @@ class LungSegmentationDataset(Dataset):
             image_slice = image[:, :, slice_idx]
             mask_slice = mask[:, :, slice_idx]
 
-            image_slice = (image_slice - np.mean(image_slice)) / np.std(image_slice)
-            mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
-
-            image_slice = torch.tensor(image_slice, dtype=torch.float32)  # Add channel dimension
-            mask_slice = torch.tensor(mask_slice, dtype=torch.float32)
-
             image_slices.append(image_slice)
             mask_slices.append(mask_slice)
 
-        image_slices = torch.stack(image_slices)
-        mask_slices = torch.stack(mask_slices)
+            image_slice = (image_slice - np.mean(image_slice)) / np.std(image_slice)
+            mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
+
+        image_slices = torch.tensor(image_slices, dtype=torch.float32).unsqueeze(1)  # Shape: [115, 1, H, W]
+        mask_slices = torch.tensor(mask_slices, dtype=torch.float32).unsqueeze(1)  # Shape: [115, 1, H, W]
+        
         
         '''
         num_batches = int(num_slices//self.batch_size)

@@ -225,7 +225,7 @@ class LungSegmentationDataset(Dataset):
         image_slices = torch.stack(image_slices)
         mask_slices = torch.stack(mask_slices)
 
-        num_batches = num_slices//batch_size
+        num_batches = int(num_slices//batch_size)
         image_batches = []
         mask_batches = []
 

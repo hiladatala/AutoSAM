@@ -168,7 +168,7 @@ class HarDNet(nn.Module):
 
         # First Layer: Standard Conv3x3, Stride=2
         self.base.append(
-            ConvLayer(in_channels=3, out_channels=first_ch[0], kernel=3,
+            ConvLayer(in_channels=115, out_channels=first_ch[0], kernel=3,
                       stride=2, bias=False))
 
         # Second Layer

@@ -229,14 +229,14 @@ class LungSegmentationDataset(Dataset):
         image_batches = []
         mask_batches = []
 
-         for i in range(num_batches):
+        for i in range(num_batches):
             start_idx = i * self.batch_size  # Start index for the batch
             end_idx = start_idx + self.batch_size  # End index for the batch
-
+    
             # Select the slices for the current batch
             image_batch = image_slices[start_idx:end_idx]  # Shape: (batch_size, 1, H, W)
             mask_batch = mask_slices[start_idx:end_idx]    # Shape: (batch_size, H, W)
-
+    
             image_batches.append(image_batch)
             mask_batches.append(mask_batch)
 

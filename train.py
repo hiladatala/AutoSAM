@@ -287,8 +287,8 @@ def main(args=None, sam_args=None):
         '''
 
     trainset, testset = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
-    ds = torch.utils.data.DataLoader(trainset, shuffle=True,num_workers=int(args['nW']), drop_last=True)
-    ds_val = torch.utils.data.DataLoader(testset, shuffle=False,num_workers=int(args['nW_eval']), drop_last=False)
+    ds = torch.utils.data.DataLoader(trainset, batch_size=int(args['Batch_size']), shuffle=True,num_workers=int(args['nW']), drop_last=True)
+    ds_val = torch.utils.data.DataLoader(testset,batch_size=1, shuffle=False,num_workers=int(args['nW_eval']), drop_last=False)
     
     best = 0
     path_best = 'results/gpu' + str(args['folder']) + '/best.csv'

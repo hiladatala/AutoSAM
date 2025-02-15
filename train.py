@@ -76,6 +76,7 @@ def get_input_dict(imgs, original_sz, img_sz):
     for i, img in enumerate(imgs):
         print(imgs.shape)
         print(f"img_sz: {len(img_sz)}")
+        print(f"img_sz: {img_sz[i].shape}")
         print(i)
         input_size = tuple([int(x) for x in img_sz[i].squeeze().tolist()])
         original_size = tuple([int(x) for x in original_sz[i].squeeze().tolist()])

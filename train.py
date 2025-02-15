@@ -192,8 +192,11 @@ class LungSegmentationDataset(Dataset):
         # Load the image (CT scan)
         image = nib.load(self.image_paths[idx]).get_fdata()  # Load image as numpy array
         original_sz = image.shape
+        original_sz = (original_sz[0], original_sz[1],3)
+
         image = zoom(image, (512/image.shape[0], 512/image.shape[1], 115/image.shape[2]))
         img_sz = image.shape
+        img_sz = (img_sz[0], img_sz[1],3)
         
         # Load the mask (segmentation)
         mask = nib.load(self.mask_paths[idx]).get_fdata()  # Load mask as numpy array
@@ -249,7 +252,7 @@ class LungSegmentationDataset(Dataset):
         mask_batches = torch.stack(mask_batches)
         '''
         
-        return image_slices, mask_slices ,original_sz[0:2], img_sz[0:2]
+        return image_slices, mask_slices ,original_sz, img_sz
 
 
 def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):

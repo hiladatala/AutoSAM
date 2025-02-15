@@ -74,7 +74,7 @@ def gen_step(optimizer, gts, masks, criterion, accumulation_steps, step):
 def get_input_dict(imgs, original_sz, img_sz):
     batched_input = []
     for i, img in enumerate(imgs):
-        print(imgs.shape)
+        print(f"len of images: {imgs.shape})
         print(f"img_sz: {len(img_sz)}")
         print(f"img_sz[i] shape: {img_sz[i].shape}")
         print(i)

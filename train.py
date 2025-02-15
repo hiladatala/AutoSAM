@@ -219,6 +219,9 @@ class LungSegmentationDataset(Dataset):
             image_slices.append(image[:, :, 89+slice_idx])
             mask_slices.append(mask[:, :, 89+slice_idx])
 
+        image_slices = np.array(image_slices) 
+        mask_slices = np.array(mask_slices)
+
         image_slices = torch.tensor(image_slices, dtype=torch.float32) # Shape: [115, 1, H, W]
         mask_slices = torch.tensor(mask_slices, dtype=torch.float32)  # Shape: [115, 1, H, W]
         

@@ -207,18 +207,15 @@ class LungSegmentationDataset(Dataset):
         image_slices = np.empty((num_slices, image.shape[0], image.shape[1]), dtype=np.float32)
         mask_slices = np.empty((num_slices, mask.shape[0], mask.shape[1]), dtype=np.float32)
 
-        '''
-        for slice_idx in range(num_slices):
-            image_slices[slice_idx] = image[:, :, slice_idx]
-            mask_slices[slice_idx] = mask[:, :, slice_idx]
-
-            #image_slices.append(image_slice)
-            #mask_slices.append(mask_slice)
-        '''
-        image_slices = image[:, :, 89:92]
-        mask_slices = mask[:, :, 89:92]
-
         
+        #for slice_idx in range(num_slices):
+        for slice_idx in range(3):
+            image_slices[slice_idx] = image[:, :, 89+slice_idx]
+            mask_slices[slice_idx] = mask[:, :, 89+slice_idx]
+
+            image_slices.append(image_slice)
+            mask_slices.append(mask_slice)
+
         image_slices = torch.tensor(image_slices, dtype=torch.float32) # Shape: [115, 1, H, W]
         mask_slices = torch.tensor(mask_slices, dtype=torch.float32)  # Shape: [115, 1, H, W]
         

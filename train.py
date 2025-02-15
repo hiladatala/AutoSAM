@@ -204,8 +204,9 @@ class LungSegmentationDataset(Dataset):
         num_slices = image.shape[2]  # Assuming that slices are along the 3rd dimension
         
         # Lists to hold image and mask slices
-        #image_slices = np.empty((num_slices, image.shape[0], image.shape[1]), dtype=np.float32)
-        #mask_slices = np.empty((num_slices, mask.shape[0], mask.shape[1]), dtype=np.float32)
+        num_slices = 3
+        image_slices = np.empty((num_slices, image.shape[0], image.shape[1]), dtype=np.float32)
+        mask_slices = np.empty((num_slices, mask.shape[0], mask.shape[1]), dtype=np.float32)
 
         
         #for slice_idx in range(num_slices):

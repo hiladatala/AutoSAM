@@ -209,8 +209,7 @@ class LungSegmentationDataset(Dataset):
         mask_slices = np.empty((num_slices, mask.shape[0], mask.shape[1]), dtype=np.float32)
 
         
-        #for slice_idx in range(num_slices):
-        for slice_idx in range(3):
+        for slice_idx in range(num_slices):
             image_slices[slice_idx] = image[:, :, 89+slice_idx]
             mask_slices[slice_idx] = mask[:, :, 89+slice_idx]
 
@@ -225,7 +224,7 @@ class LungSegmentationDataset(Dataset):
         image_batches = []
         mask_batches = []
 
-        for i in range(num_batches):
+        for i in range(num_slices):
             start_idx = i * self.batch_size  # Start index for the batch
             end_idx = start_idx + self.batch_size  # End index for the batch
     

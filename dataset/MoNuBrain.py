@@ -48,6 +48,8 @@ class ImageLoader(torch.utils.data.Dataset):
         img, mask = self.transform(img, mask)
         original_size = tuple(img.shape[1:3])
         img, mask = self.sam_trans.apply_image_torch(img), self.sam_trans.apply_image_torch(mask)
+        print(img.shape)
+        print(mask.shape)
         mask[mask > 0.5] = 1
         mask[mask <= 0.5] = 0
         image_size = tuple(img.shape[1:3])

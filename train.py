@@ -325,7 +325,7 @@ if __name__ == '__main__':
     #parser.add_argument('-task', '--task', default='glas', help='evaluation iteration', required=False)
     parser.add_argument('-task', '--task', default='monu', help='evaluation iteration', required=False)
     
-    parser.add_argument('-dataset_path', '--dataset_path', default='/content/drive/My Drive/Msc/DeepLearning/MoNuSeg/Training/img, help='Path to the dataset', required=True)
+    parser.add_argument('-dataset_path', '--dataset_path', default='/content/drive/My Drive/Msc/DeepLearning/MoNuSeg/Training/img', help='Path to the dataset', required=True)
     parser.add_argument('-mask_path', '--mask_path', default='/content/drive/My Drive/Msc/DeepLearning/MoNuSeg/Training/mask', help='Path to the mask dataset', required=True)
     #parser.add_argument('-dataset_path', '--dataset_path', default='/content/drive/My Drive/Msc/DeepLearning/Project/Task06_Lung/imagesTr', help='Path to the dataset', required=True)
     #parser.add_argument('-mask_path', '--mask_path', default='/content/drive/My Drive/Msc/DeepLearning/Project/Task06_Lung/labelsTr', help='Path to the mask dataset', required=True)

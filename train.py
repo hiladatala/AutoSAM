@@ -285,14 +285,14 @@ def main(args=None, sam_args=None):
     optimizer = optim.Adam(model.parameters(),
                            lr=float(args['learning_rate']),
                            weight_decay=float(args['WD']))
-
+    '''
     if args['task'] == 'monu':
         trainset, testset = get_monu_dataset(args, sam_trans=transform)
     elif args['task'] == 'glas':
         trainset, testset = get_glas_dataset(args, sam_trans=transform)
     elif args['task'] == 'polyp':
         trainset, testset = get_polyp_dataset(args, sam_trans=transform)
-
+    '''
     #trainset, testset = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
     ds = torch.utils.data.DataLoader(trainset, batch_size=int(args['Batch_size']), shuffle=True,num_workers=int(args['nW']), drop_last=True)
     ds_val = torch.utils.data.DataLoader(testset,batch_size=1, shuffle=False,num_workers=int(args['nW_eval']), drop_last=False)

@@ -28,6 +28,7 @@ class ImageLoader(torch.utils.data.Dataset):
             self.imgs_root = os.path.join(self.root, 'Training', 'img')
             self.masks_root = os.path.join(self.root, 'Training', 'mask')
         else:
+            print(self.root)
             self.imgs_root = os.path.join(self.root, 'Test', 'img')
             self.masks_root = os.path.join(self.root, 'Test', 'mask')
         self.paths = os.listdir(self.imgs_root)
@@ -63,7 +64,7 @@ class ImageLoader(torch.utils.data.Dataset):
 def get_monu_dataset(args, sam_trans):
     datadir = 'MoNuSeg'
     transform_train, transform_test = get_monu_transform(args)
-    ds_train = ImageLoader(datadir, train=True, transform=transform_train, sam_trans=sam_trans, loops=5)
+    ds_train = ImageLoader(datadir, train=False, transform=transform_train, sam_trans=sam_trans, loops=5)
     ds_test = ImageLoader(datadir, train=False, transform=transform_test, sam_trans=sam_trans)
     return ds_train, ds_test
 

@@ -10,12 +10,12 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from scipy.ndimage import zoom
 from scipy.ndimage import label
-from google.colab import drive
 import matplotlib.pyplot as plt
 import re
 from models.model_single import ModelEmb
 from dataset.glas import get_glas_dataset
 from dataset.MoNuBrain import get_monu_dataset
+from dataset.LungData import get_lung_dataset
 from dataset.polyp import get_polyp_dataset, get_tests_polyp_dataset
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 from segment_anything.utils.transforms import ResizeLongestSide
@@ -63,6 +63,7 @@ def open_folder(path):
 def gen_step(optimizer, gts, masks, criterion, accumulation_steps, step):
     size = masks.shape[2:]
     gts_sized = F.interpolate(gts.unsqueeze(dim=1), size, mode='nearest')
+    #gts_sized = F.interpolate(gts, size, mode='nearest')
     loss = criterion(masks, gts_sized) + Dice_loss(masks, gts_sized)
     loss.backward()
     if (step + 1) % accumulation_steps == 0:  # Wait for several backward steps
@@ -177,7 +178,7 @@ def sam_call(batched_input, sam, dense_embeddings):
         multimask_output=False,
     )
     return low_res_masks
-
+'''
 class LungSegmentationDataset(Dataset):
     def __init__(self, image_paths, mask_paths,batch_size, transform=None):
         self.image_paths = image_paths
@@ -232,29 +233,6 @@ class LungSegmentationDataset(Dataset):
         image_slices = torch.tensor(image_slices, dtype=torch.float32) # Shape: [115, 1, H, W]
         mask_slices = torch.tensor(mask_slices, dtype=torch.float32)  # Shape: [115, 1, H, W]
         
-        '''
-        num_batches = int(num_slices//self.batch_size)
-        image_batches = []
-        mask_batches = []
-
-        for i in range(num_slices):
-            start_idx = i * self.batch_size  # Start index for the batch
-            end_idx = start_idx + self.batch_size  # End index for the batch
-    
-            # Select the slices for the current batch
-            image_batch = image_slices[start_idx:end_idx]  # Shape: (batch_size, 1, H, W)
-            mask_batch = mask_slices[start_idx:end_idx]    # Shape: (batch_size, H, W)
-    
-            image_batches.append(image_batch)
-            mask_batches.append(mask_batch)
-
-        image_batches = torch.stack(image_batches)
-        mask_batches = torch.stack(mask_batches)
-        '''
-        print(original_sz)
-        print(img_sz)
-        return image_slices, mask_slices ,original_sz, img_sz
-
 
 def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):
     image_paths = sorted([os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.endswith('.nii.gz') and not f.startswith('._')])
@@ -271,7 +249,7 @@ def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=
     #test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return train_dataset, test_dataset
-
+    '''
 
 def main(args=None, sam_args=None):
     if torch.cuda.is_available():
@@ -285,15 +263,18 @@ def main(args=None, sam_args=None):
     optimizer = optim.Adam(model.parameters(),
                            lr=float(args['learning_rate']),
                            weight_decay=float(args['WD']))
-    '''
+
     if args['task'] == 'monu':
         trainset, testset = get_monu_dataset(args, sam_trans=transform)
     elif args['task'] == 'glas':
         trainset, testset = get_glas_dataset(args, sam_trans=transform)
     elif args['task'] == 'polyp':
         trainset, testset = get_polyp_dataset(args, sam_trans=transform)
-    '''
-    trainset, testset = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
+    elif args['task'] == 'lung':
+        trainset, testset = get_lung_dataset(args, sam_trans=transform)
+
+
+    #trainset, testset = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
     ds = torch.utils.data.DataLoader(trainset, batch_size=int(args['Batch_size']), shuffle=True,num_workers=int(args['nW']), drop_last=True)
     ds_val = torch.utils.data.DataLoader(testset,batch_size=1, shuffle=False,num_workers=int(args['nW_eval']), drop_last=False)
     
@@ -322,10 +303,10 @@ if __name__ == '__main__':
     parser.add_argument('-nW', '--nW', default=0, help='evaluation iteration', required=False)
     parser.add_argument('-nW_eval', '--nW_eval', default=0, help='evaluation iteration', required=False)
     parser.add_argument('-WD', '--WD', default=1e-4, help='evaluation iteration', required=False)
-    parser.add_argument('-task', '--task', default='glas', help='evaluation iteration', required=False)
+    parser.add_argument('-task', '--task', default='lung', help='evaluation iteration', required=False)
     
-    parser.add_argument('-dataset_path', '--dataset_path', default='/content/drive/My Drive/Msc/DeepLearning/Project/Task06_Lung/imagesTr', help='Path to the dataset', required=True)
-    parser.add_argument('-mask_path', '--mask_path', default='/content/drive/My Drive/Msc/DeepLearning/Project/Task06_Lung/labelsTr', help='Path to the mask dataset', required=True)
+    parser.add_argument('-dataset_path', '--dataset_path', default='C:\Hila\Registration task\Dataset\Lung\Training\img', help='Path to the dataset', required=True)
+    parser.add_argument('-mask_path', '--mask_path', default='C:\Hila\Registration task\Dataset\Lung\Training\mask', help='Path to the mask dataset', required=True)
     
     parser.add_argument('-depth_wise', '--depth_wise', default=False, help='image size', required=False)
     parser.add_argument('-order', '--order', default=85, help='image size', required=False)
@@ -347,7 +328,7 @@ if __name__ == '__main__':
     args['vis_folder'] = os.path.join('results', 'gpu' + args['folder'], 'vis')
     os.mkdir(args['vis_folder'])
     sam_args = {
-        'sam_checkpoint': "/content/drive/My Drive/Msc/DeepLearning/Project/sam_vit_h.pth",
+        'sam_checkpoint': 'C:\Hila\Registration task\sam_vit_h.pth',
         'model_type': "vit_h",
         'generator_args': {
             'points_per_side': 8,

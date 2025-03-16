@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import numpy as np
 from train import get_input_dict, norm_batch, get_dice_ji
 import cv2
+from dataset.LungData import get_lung_dataset
 
 
 sam_args = {
@@ -95,6 +96,8 @@ def main(args=None):
         trainset, testset = get_glas_dataset(sam_trans=transform)
     elif args['task'] == 'polyp':
         trainset, testset = get_polyp_dataset(args, sam_trans=transform)
+    elif args['task'] == 'lung':
+        trainset, testset = get_lung_dataset(args, sam_trans=transform)
     ds_val = torch.utils.data.DataLoader(testset, batch_size=1, shuffle=False,
                                          num_workers=int(args['nW_eval']), drop_last=False)
     with torch.no_grad():

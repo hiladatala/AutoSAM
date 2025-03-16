@@ -299,7 +299,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument('-lr', '--learning_rate', default=0.0003, help='learning_rate', required=False)
     parser.add_argument('-bs', '--Batch_size', default=3, help='batch_size', required=False)
-    parser.add_argument('-epoches', '--epoches', default=5000, help='number of epoches', required=False)
+    parser.add_argument('-epoches', '--epoches', default=1, help='number of epoches', required=False)
     parser.add_argument('-nW', '--nW', default=0, help='evaluation iteration', required=False)
     parser.add_argument('-nW_eval', '--nW_eval', default=0, help='evaluation iteration', required=False)
     parser.add_argument('-WD', '--WD', default=1e-4, help='evaluation iteration', required=False)

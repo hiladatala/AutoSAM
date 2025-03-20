@@ -2,6 +2,7 @@ import torch.optim as optim
 import torch.utils.data
 import torch
 import torch.nn as nn
+from tornado.escape import squeeze
 from tqdm import tqdm
 import os
 from torch.utils.data import Dataset, DataLoader
@@ -143,14 +144,44 @@ def inference_ds(ds, model, sam, transform, epoch, args):
         dense_embeddings = model(orig_imgs_small)
         batched_input = get_input_dict(orig_imgs, original_sz, img_sz)
         masks = norm_batch(sam_call(batched_input, sam, dense_embeddings))
+
+        masks_test =  masks.squeeze()
+        masks_test = masks_test.squeeze()
+
+        plt.imshow(masks_test.cpu().numpy())
+        plt.axis('off')  # Hide the axes
+        plt.title('mask display Example')
+        plt.show()
+
         input_size = tuple([int(x) for x in img_sz[0].squeeze().tolist()])
         original_size = tuple([int(x) for x in original_sz[0].squeeze().tolist()])
         masks = sam.postprocess_masks(masks, input_size=input_size, original_size=original_size)
         gts = sam.postprocess_masks(gts.unsqueeze(dim=0), input_size=input_size, original_size=original_size)
         masks = F.interpolate(masks, (Idim, Idim), mode='bilinear', align_corners=True)
         gts = F.interpolate(gts, (Idim, Idim), mode='nearest')
-        masks[masks > 0.5] = 1
-        masks[masks <= 0.5] = 0
+
+        masks_values = np.unique(masks.cpu().numpy())
+        masks_full = masks.squeeze()
+        masks_full = masks_full.squeeze()
+
+        plt.imshow(masks_full.cpu().numpy())
+        plt.axis('off')  # Hide the axes
+        plt.title('mask display Example')
+        plt.show()
+
+        masks[masks > 0.3] = 1
+        masks[masks <= 0.3] = 0
+
+        masks_s = masks.squeeze()
+        masks_s = masks_s.squeeze()
+        masks_s = masks_s.cpu().numpy()
+
+        plt.imshow(masks_s)
+        plt.axis('off')  # Hide the axes
+        plt.title('mask display Example')
+        plt.show()
+
+
         dice, ji = get_dice_ji(masks.squeeze().detach().cpu().numpy(),
                                gts.squeeze().detach().cpu().numpy())
         iou_list.append(ji)
@@ -299,14 +330,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument('-lr', '--learning_rate', default=0.0003, help='learning_rate', required=False)
     parser.add_argument('-bs', '--Batch_size', default=3, help='batch_size', required=False)
-    parser.add_argument('-epoches', '--epoches', default=1, help='number of epoches', required=False)
+    parser.add_argument('-epoches', '--epoches', default=50, help='number of epoches', required=False)
     parser.add_argument('-nW', '--nW', default=0, help='evaluation iteration', required=False)
     parser.add_argument('-nW_eval', '--nW_eval', default=0, help='evaluation iteration', required=False)
     parser.add_argument('-WD', '--WD', default=1e-4, help='evaluation iteration', required=False)
     parser.add_argument('-task', '--task', default='lung', help='evaluation iteration', required=False)
     
-    parser.add_argument('-dataset_path', '--dataset_path', default='C:\Hila\Registration task\Dataset\Lung\Training\img', help='Path to the dataset', required=True)
-    parser.add_argument('-mask_path', '--mask_path', default='C:\Hila\Registration task\Dataset\Lung\Training\mask', help='Path to the mask dataset', required=True)
+    parser.add_argument('-dataset_path', '--dataset_path', default='/media/cilab/DATA/Hila/Data/Projects/AutoSAM/Lung/Training/img', help='Path to the dataset', required=True)
+    parser.add_argument('-mask_path', '--mask_path', default='/media/cilab/DATA/Hila/Data/Projects/AutoSAM/Lung/Training/mask', help='Path to the mask dataset', required=True)
     
     parser.add_argument('-depth_wise', '--depth_wise', default=False, help='image size', required=False)
     parser.add_argument('-order', '--order', default=85, help='image size', required=False)
@@ -328,7 +359,7 @@ if __name__ == '__main__':
     args['vis_folder'] = os.path.join('results', 'gpu' + args['folder'], 'vis')
     os.mkdir(args['vis_folder'])
     sam_args = {
-        'sam_checkpoint': 'C:\Hila\Registration task\sam_vit_h.pth',
+        'sam_checkpoint': '/media/cilab/DATA/Hila/Data/Projects/AutoSAM/sam_vit_h.pth',
         'model_type': "vit_h",
         'generator_args': {
             'points_per_side': 8,

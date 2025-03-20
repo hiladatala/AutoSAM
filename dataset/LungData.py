@@ -60,11 +60,51 @@ class ImageLoader(torch.utils.data.Dataset):
             mask_path = file_path.split('.')[0] + '.nii.gz'
             img = self.loader(os.path.join(self.imgs_root, file_path), is_mask=False)
             mask = self.loader(os.path.join(self.masks_root, mask_path), is_mask=True)
+            mask_values = np.unique(mask)
+
+            '''
+            fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+            # Display the image slice
+            axes[0].imshow(img[:, :, 50], cmap="gray")
+            axes[0].set_title("CT Scan Slice")
+            axes[0].axis("off")  # Hide axes
+
+            # Display the mask slice
+            # print(np.unique(mask_slice))
+            # mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
+
+            axes[1].imshow(mask[:, :, 50], cmap="gray")
+            axes[1].set_title("Segmentation Mask Slice")
+            axes[1].axis("off")  # Hide axes
+            plt.show()
+            '''
 
             # Resize the image and mask to 256x256x120
             img = zoom(img, (256 / img.shape[0], 256 / img.shape[1], 96 / img.shape[2]))
             mask = zoom(mask, (256 / mask.shape[0], 256 / mask.shape[1], 96 / mask.shape[2]))
-            mask = (mask == 6)
+            mask_values = np.unique(mask)
+
+            '''
+            fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+            # Display the image slice
+            axes[0].imshow(img[:,:,50],cmap="gray")
+            axes[0].set_title("CT Scan Slice")
+            axes[0].axis("off")  # Hide axes
+
+            # Display the mask slice
+            # print(np.unique(mask_slice))
+            # mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
+
+            min_value = np.min(mask[:,:,50])
+            max_value = np.max(mask[:,:,50])
+            axes[1].imshow(mask[:,:,50], cmap="gray")
+            axes[1].set_title("Segmentation Mask Slice")
+            axes[1].axis("off")  # Hide axes
+            plt.show()
+            '''
+
+            #mask_values = np.unique(mask)
+            #mask = (mask == 6)
 
             # Loop over all slices and store them in the all_slices list
             #random.seed(42)
@@ -79,21 +119,32 @@ class ImageLoader(torch.utils.data.Dataset):
                 #idx = selected_numbers[i]
                 #img_slice = img[:, :, idx]  # Get a specific slice
                 #mask_slice = mask[:, :, idx]  # Get the corresponding mask slice
-
                 img_slice = img[:, :, idx + i]
+                print(idx + i)
                 img_slice = (img_slice - np.mean(img_slice)) / np.std(img_slice)
 
                 mask_slice = mask[:, :, idx + i]
+                #mask_slice = (mask_slice - np.mean(mask_slice)) / np.std(mask_slice)
+                mask_values = np.unique(mask_slice)
+
+                '''
+                plt.imshow(mask_slice, cmap="gray")
+                plt.show()
+                '''
+
+                mask_slice[mask_slice > 0.3] = 1
+                mask_slice[mask_slice <= 0.3] = 0
 
                 # Convert to 3-channel (RGB) image
                 img_slice = np.stack([img_slice*1/3] * 3, axis=-1)  # (256, 256, 3)
 
 
                 # Create a figure with two subplots (one for image, one for mask)
-                fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
+                '''
+                fig, axes = plt.subplots(1, 2, figsize=(12, 6))
                 # Display the image slice
-                axes[0].imshow(img_slice, cmap="gray")
+                axes[0].imshow(img_slice)
                 axes[0].set_title("CT Scan Slice")
                 axes[0].axis("off")  # Hide axes
 
@@ -108,17 +159,26 @@ class ImageLoader(torch.utils.data.Dataset):
                 # Show the plot
                 plt.tight_layout()
                 plt.show()
+                '''
+
 
 
                 # Apply transformations
                 img_slice, mask_slice = self.transform(img_slice, mask_slice)
+
                 original_size = tuple(img_slice.shape[1:3])  # (256, 256)
                 img_slice, mask_slice = self.sam_trans.apply_image_torch(img_slice), self.sam_trans.apply_image_torch(
                     mask_slice)
 
                 # Process mask to binary format
-                mask_slice[mask_slice > 0.1] = 1
-                mask_slice[mask_slice <= 0.1] = 0
+                #mask_slice[mask_slice > 0.1] = 1
+                #mask_slice[mask_slice <= 0.1] = 0
+
+                '''
+                plt.imshow(mask_slice, cmap="gray")
+                plt.show()
+                '''
+
                 image_size = tuple(img_slice.shape[1:3])  # (256, 256)
 
                 # Store the processed slice and metadata as a tuple
@@ -126,6 +186,10 @@ class ImageLoader(torch.utils.data.Dataset):
                                    self.sam_trans.preprocess(mask_slice),
                                    torch.Tensor(original_size),
                                    torch.Tensor(image_size)))
+
+
+
+
 
         return all_slices
 
@@ -167,7 +231,7 @@ class ImageLoader(torch.utils.data.Dataset):
 
 
 def get_lung_dataset(args, sam_trans):
-    datadir = 'C:\Hila\Registration task\Dataset\Lung'
+    datadir = '/media/cilab/DATA/Hila/Data/Projects/AutoSAM/Lung'
     transform_train, transform_test = get_lung_transform(args)
     ds_train = ImageLoader(datadir, train=True, transform=transform_train, sam_trans=sam_trans, loops=5)
     ds_test = ImageLoader(datadir, train=False, transform=transform_test, sam_trans=sam_trans)

@@ -45,9 +45,17 @@ def Dice_loss(y_true, y_pred, smooth=1):
 def get_dice_ji(predict, target):
     predict = predict + 1
     target = target + 1
+
+    if np.all(predict == 1) and np.all(target == 1):
+        return 1.0, 1.0
+    '''
     tp = np.sum(((predict == 2) * (target == 2)) * (target > 0))
     fp = np.sum(((predict == 2) * (target == 1)) * (target > 0))
     fn = np.sum(((predict == 1) * (target == 2)) * (target > 0))
+    '''
+    tp = np.sum(((predict == 2) * (target == 2)))
+    fp = np.sum(((predict == 2) * (target == 1)))
+    fn = np.sum(((predict == 1) * (target == 2)))
     ji = float(np.nan_to_num(tp / (tp + fp + fn)))
     dice = float(np.nan_to_num(2 * tp / (2 * tp + fp + fn)))
     return dice, ji
@@ -76,10 +84,10 @@ def gen_step(optimizer, gts, masks, criterion, accumulation_steps, step):
 def get_input_dict(imgs, original_sz, img_sz):
     batched_input = []
     for i, img in enumerate(imgs):
-        print(f"len of images: {len(imgs)}")
-        print(f"img_sz: {len(img_sz)}")
-        print(f"img_sz[i] shape: {img_sz[i].shape}")
-        print(i)
+        #print(f"len of images: {len(imgs)}")
+        #print(f"img_sz: {len(img_sz)}")
+        #print(f"img_sz[i] shape: {img_sz[i].shape}")
+        #print(f" image idx from get_input_dict: {i}")
         input_size = tuple([int(x) for x in img_sz[i].squeeze().tolist()])
         original_size = tuple([int(x) for x in original_sz[i].squeeze().tolist()])
         singel_input = {
@@ -151,6 +159,7 @@ def inference_ds(ds, model, sam, transform, epoch, args):
         plt.imshow(masks_test.cpu().numpy())
         plt.axis('off')  # Hide the axes
         plt.title('mask display Example')
+
         plt.show()
 
         input_size = tuple([int(x) for x in img_sz[0].squeeze().tolist()])
@@ -169,17 +178,38 @@ def inference_ds(ds, model, sam, transform, epoch, args):
         plt.title('mask display Example')
         plt.show()
 
-        masks[masks > 0.3] = 1
-        masks[masks <= 0.3] = 0
+        masks[masks > 0.5] = 1
+        masks[masks <= 0.5] = 0
 
         masks_s = masks.squeeze()
         masks_s = masks_s.squeeze()
         masks_s = masks_s.cpu().numpy()
 
+        gts_s = gts.squeeze()
+        gts_s = gts_s.squeeze()
+        gts_s = gts_s.cpu().numpy()
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+        # Display the image slice
+        axes[0].imshow(gts_s, cmap="gray")
+        axes[0].set_title("CT Scan Slice")
+        axes[0].axis("off")  # Hide axes
+
+        # Display the mask slice
+        # print(np.unique(mask_slice))
+        # mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
+
+        axes[1].imshow(masks_s, cmap="gray")
+        axes[1].set_title("Segmentation Mask Slice")
+        axes[1].axis("off")  # Hide axes
+        plt.show()
+
+        '''
         plt.imshow(masks_s)
         plt.axis('off')  # Hide the axes
         plt.title('mask display Example')
         plt.show()
+        '''
 
 
         dice, ji = get_dice_ji(masks.squeeze().detach().cpu().numpy(),
@@ -328,11 +358,11 @@ def main(args=None, sam_args=None):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Description of your program')
-    parser.add_argument('-lr', '--learning_rate', default=0.0003, help='learning_rate', required=False)
-    parser.add_argument('-bs', '--Batch_size', default=3, help='batch_size', required=False)
-    parser.add_argument('-epoches', '--epoches', default=50, help='number of epoches', required=False)
-    parser.add_argument('-nW', '--nW', default=0, help='evaluation iteration', required=False)
-    parser.add_argument('-nW_eval', '--nW_eval', default=0, help='evaluation iteration', required=False)
+    parser.add_argument('-lr', '--learning_rate', default=0.001, help='learning_rate', required=False)
+    parser.add_argument('-bs', '--Batch_size', default=5, help='batch_size', required=False)
+    parser.add_argument('-epoches', '--epoches', default=10, help='number of epoches', required=False)
+    parser.add_argument('-nW', '--nW', default=8, help='evaluation iteration', required=False)
+    parser.add_argument('-nW_eval', '--nW_eval', default=8, help='evaluation iteration', required=False)
     parser.add_argument('-WD', '--WD', default=1e-4, help='evaluation iteration', required=False)
     parser.add_argument('-task', '--task', default='lung', help='evaluation iteration', required=False)
     

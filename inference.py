@@ -51,8 +51,10 @@ def inference_ds(ds, model, sam, transform, epoch, args):
         gts = sam.postprocess_masks(gts.unsqueeze(dim=0), input_size=input_size, original_size=original_size)
         masks = F.interpolate(masks, (Idim, Idim), mode='bilinear', align_corners=True)
         gts = F.interpolate(gts, (Idim, Idim), mode='nearest')
+
         masks[masks > 0.3] = 1
         masks[masks <= 0.3] = 0
+
 
         dice, ji = get_dice_ji(masks.squeeze().detach().cpu().numpy(),
                                gts.squeeze().detach().cpu().numpy())

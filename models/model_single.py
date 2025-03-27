@@ -262,4 +262,4 @@ if __name__ == "__main__":
     # model.conv3.load_state_dict(pretrain[6].state_dict())
     x = torch.randn((4, 256, 64, 64)).cuda()
     z = model(x)
-    print(z.shape)
+    #print(z.shape)

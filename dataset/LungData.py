@@ -14,6 +14,10 @@ from scipy.ndimage import zoom
 from scipy.ndimage import label
 import matplotlib.pyplot as plt
 import random
+import pickle
+import os
+import gc
+
 
 def cv2_loader(path, is_mask):
     if is_mask:
@@ -40,8 +44,8 @@ class ImageLoader(torch.utils.data.Dataset):
             self.imgs_root = os.path.join(self.root, 'Training', 'img')
             self.masks_root = os.path.join(self.root, 'Training', 'mask')
         else:
-            self.imgs_root = os.path.join(self.root, 'Test', 'img')
-            self.masks_root = os.path.join(self.root, 'Test', 'mask')
+            self.imgs_root = os.path.join(self.root, 'Testing', 'img')
+            self.masks_root = os.path.join(self.root, 'Testing', 'mask')
         self.paths = os.listdir(self.imgs_root)
         self.transform = transform
         self.target_transform = target_transform
@@ -49,154 +53,76 @@ class ImageLoader(torch.utils.data.Dataset):
         self.train = train
         self.loops = loops
         self.sam_trans = sam_trans
-        self.all_slices = self.preload_all_slices()
+        self.image_mask_pairs = [
+            (os.path.join(self.imgs_root, file), os.path.join(self.masks_root, file.split('.')[0] + '.nii.gz'))
+            for file in self.paths
+        ]
         print('num of data:{}'.format(len(self.paths)))
-        print(f'Number of slices in the dataset: {len(self.all_slices)}')
-
-    def preload_all_slices(self):
-        all_slices = []
-        for file_path in self.paths:
-            # Construct the full path to the image and mask files
-            mask_path = file_path.split('.')[0] + '.nii.gz'
-            img = self.loader(os.path.join(self.imgs_root, file_path), is_mask=False)
-            mask = self.loader(os.path.join(self.masks_root, mask_path), is_mask=True)
-            mask_values = np.unique(mask)
-
-            '''
-            fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-            # Display the image slice
-            axes[0].imshow(img[:, :, 50], cmap="gray")
-            axes[0].set_title("CT Scan Slice")
-            axes[0].axis("off")  # Hide axes
-
-            # Display the mask slice
-            # print(np.unique(mask_slice))
-            # mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
-
-            axes[1].imshow(mask[:, :, 50], cmap="gray")
-            axes[1].set_title("Segmentation Mask Slice")
-            axes[1].axis("off")  # Hide axes
-            plt.show()
-            '''
-
-            # Resize the image and mask to 256x256x120
-            img = zoom(img, (256 / img.shape[0], 256 / img.shape[1], 96 / img.shape[2]))
-            mask = zoom(mask, (256 / mask.shape[0], 256 / mask.shape[1], 96 / mask.shape[2]))
-            mask_values = np.unique(mask)
-
-            '''
-            fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-            # Display the image slice
-            axes[0].imshow(img[:,:,50],cmap="gray")
-            axes[0].set_title("CT Scan Slice")
-            axes[0].axis("off")  # Hide axes
-
-            # Display the mask slice
-            # print(np.unique(mask_slice))
-            # mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
-
-            min_value = np.min(mask[:,:,50])
-            max_value = np.max(mask[:,:,50])
-            axes[1].imshow(mask[:,:,50], cmap="gray")
-            axes[1].set_title("Segmentation Mask Slice")
-            axes[1].axis("off")  # Hide axes
-            plt.show()
-            '''
-
-            #mask_values = np.unique(mask)
-            #mask = (mask == 6)
-
-            # Loop over all slices and store them in the all_slices list
-            #random.seed(42)
-            #random_array = [random.randint(0, 91) for _ in range(92)]
-            #selected_numbers = random.sample(random_array, 30)
-
-            random_array = [random.randint(0, 64) for _ in range(64)]
-            idx = random.choice(random_array)
-
-
-            for i in range(30):
-                #idx = selected_numbers[i]
-                #img_slice = img[:, :, idx]  # Get a specific slice
-                #mask_slice = mask[:, :, idx]  # Get the corresponding mask slice
-                img_slice = img[:, :, idx + i]
-                print(idx + i)
-                img_slice = (img_slice - np.mean(img_slice)) / np.std(img_slice)
-
-                mask_slice = mask[:, :, idx + i]
-                #mask_slice = (mask_slice - np.mean(mask_slice)) / np.std(mask_slice)
-                mask_values = np.unique(mask_slice)
-
-                '''
-                plt.imshow(mask_slice, cmap="gray")
-                plt.show()
-                '''
-
-                mask_slice[mask_slice > 0.3] = 1
-                mask_slice[mask_slice <= 0.3] = 0
-
-                # Convert to 3-channel (RGB) image
-                img_slice = np.stack([img_slice*1/3] * 3, axis=-1)  # (256, 256, 3)
-
-
-                # Create a figure with two subplots (one for image, one for mask)
-
-                '''
-                fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-                # Display the image slice
-                axes[0].imshow(img_slice)
-                axes[0].set_title("CT Scan Slice")
-                axes[0].axis("off")  # Hide axes
-
-                # Display the mask slice
-                # print(np.unique(mask_slice))
-                # mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
-
-                axes[1].imshow(mask_slice, cmap="gray")
-                axes[1].set_title("Segmentation Mask Slice")
-                axes[1].axis("off")  # Hide axes
-
-                # Show the plot
-                plt.tight_layout()
-                plt.show()
-                '''
-
-
-
-                # Apply transformations
-                img_slice, mask_slice = self.transform(img_slice, mask_slice)
-
-                original_size = tuple(img_slice.shape[1:3])  # (256, 256)
-                img_slice, mask_slice = self.sam_trans.apply_image_torch(img_slice), self.sam_trans.apply_image_torch(
-                    mask_slice)
-
-                # Process mask to binary format
-                #mask_slice[mask_slice > 0.1] = 1
-                #mask_slice[mask_slice <= 0.1] = 0
-
-                '''
-                plt.imshow(mask_slice, cmap="gray")
-                plt.show()
-                '''
-
-                image_size = tuple(img_slice.shape[1:3])  # (256, 256)
-
-                # Store the processed slice and metadata as a tuple
-                all_slices.append((self.sam_trans.preprocess(img_slice),
-                                   self.sam_trans.preprocess(mask_slice),
-                                   torch.Tensor(original_size),
-                                   torch.Tensor(image_size)))
-
-
-
-
-
-        return all_slices
 
 
 
     def __getitem__(self, index):
-        return self.all_slices[index % len(self.all_slices)]
+        img_path, mask_path = self.image_mask_pairs[index % len(self.image_mask_pairs)]
+        img = self.loader(img_path, is_mask=False)
+        mask = self.loader(mask_path, is_mask=False)
+        mask = (mask == 6)
+        mask = mask.astype(float)
+        mask_values = np.unique(mask)
+
+        '''
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+        # Display the image slice
+        axes[0].imshow(img[:,:,50], cmap="gray")
+        axes[0].set_title("CT Scan Slice")
+        axes[0].axis("off")  # Hide axes
+
+        axes[1].imshow(mask[:,:,50], cmap="gray")
+        axes[1].set_title("Segmentation Mask Slice")
+        axes[1].axis("off")  # Hide axes
+        plt.show()  
+        '''
+
+        img = zoom(img, (256 / img.shape[0], 256 / img.shape[1], 92 / img.shape[2]))
+        mask = zoom(mask, (256 / mask.shape[0], 256 / mask.shape[1], 92 / mask.shape[2]))
+
+        mask[mask > 0.5] = 1
+        mask[mask <= 0.5] = 0
+
+        total_slices = img.shape[2]
+        slice_index = index % total_slices
+
+        img_slice = img[:, :, slice_index]
+        img_slice = (img_slice - np.mean(img_slice)) / np.std(img_slice)
+        mask_slice = mask[:, :, slice_index]
+
+
+        img_slice = np.stack([img_slice * 1 / 3] * 3, axis=-1)
+
+        '''
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+        # Display the image slice
+        axes[0].imshow(img_slice, cmap="gray")
+        axes[0].set_title("CT Scan Slice")
+        axes[0].axis("off")  # Hide axes
+
+        axes[1].imshow(mask_slice, cmap="gray")
+        axes[1].set_title("Segmentation Mask Slice")
+        axes[1].axis("off")  # Hide axes
+        plt.show()
+        '''
+
+        print(f"CT scan idx: {index % len(self.image_mask_pairs)} img_slice idx: {slice_index}")
+        img_slice, mask_slice = self.transform(img_slice, mask_slice)
+        original_size = tuple(img_slice.shape[1:3])  # (256, 256)
+        img_slice, mask_slice = self.sam_trans.apply_image_torch(img_slice), self.sam_trans.apply_image_torch(mask_slice)
+        image_size = tuple(img_slice.shape[1:3])  # (256, 256)
+
+
+        return self.sam_trans.preprocess(img_slice),self.sam_trans.preprocess(mask_slice),torch.Tensor(original_size),torch.Tensor(image_size)
+
+
+
+
 
 
 
@@ -227,13 +153,13 @@ class ImageLoader(torch.utils.data.Dataset):
         '''
 
     def __len__(self):
-        return len(self.paths) * self.loops
+        return len(self.paths) * self.loops *92
 
 
 def get_lung_dataset(args, sam_trans):
-    datadir = '/media/cilab/DATA/Hila/Data/Projects/AutoSAM/Lung'
+    datadir = '/media/cilab/DATA/Hila/Data/Projects/AutoSAM/Abdomen'
     transform_train, transform_test = get_lung_transform(args)
-    ds_train = ImageLoader(datadir, train=True, transform=transform_train, sam_trans=sam_trans, loops=5)
+    ds_train = ImageLoader(datadir, train=True, transform=transform_train, sam_trans=sam_trans, loops=1)
     ds_test = ImageLoader(datadir, train=False, transform=transform_test, sam_trans=sam_trans)
     return ds_train, ds_test
 

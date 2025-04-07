@@ -21,6 +21,18 @@ from dataset.polyp import get_polyp_dataset, get_tests_polyp_dataset
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 from segment_anything.utils.transforms import ResizeLongestSide
 import torch.nn.functional as F
+from tqdm import tqdm
+from dataset.tfs import get_lung_transform
+
+class SingleItemDataset(torch.utils.data.Dataset):
+    def __init__(self, sample):
+        self.sample = sample
+
+    def __len__(self):
+        return 1
+
+    def __getitem__(self, idx):
+        return self.sample
 
 
 def norm_batch(x):
@@ -43,19 +55,11 @@ def Dice_loss(y_true, y_pred, smooth=1):
 
 
 def get_dice_ji(predict, target):
-    predict = predict + 1
-    target = target + 1
-
-    if np.all(predict == 1) and np.all(target == 1):
-        return 1.0, 1.0
-    '''
-    tp = np.sum(((predict == 2) * (target == 2)) * (target > 0))
-    fp = np.sum(((predict == 2) * (target == 1)) * (target > 0))
-    fn = np.sum(((predict == 1) * (target == 2)) * (target > 0))
-    '''
-    tp = np.sum(((predict == 2) * (target == 2)))
-    fp = np.sum(((predict == 2) * (target == 1)))
-    fn = np.sum(((predict == 1) * (target == 2)))
+    predict = predict.flatten() + 1
+    target = target.flatten() + 1
+    tp = np.sum((predict == 2) & (target == 2))
+    fp = np.sum((predict == 2) & (target == 1))
+    fn = np.sum((predict == 1) & (target == 2))
     ji = float(np.nan_to_num(tp / (tp + fp + fn)))
     dice = float(np.nan_to_num(2 * tp / (2 * tp + fp + fn)))
     return dice, ji
@@ -112,107 +116,146 @@ def postprocess_masks(masks_dict):
     return masks, ious
 
 
-def train_single_epoch(ds, model, sam, optimizer, transform, epoch):
+def train_single_epoch(ds, model, sam, optimizer, sam_trans, epoch):
     loss_list = []
     pbar = tqdm(ds)
     criterion = nn.BCELoss()
     Idim = int(args['Idim'])
     NumSliceDim = int(args['NumSliceDim'])
+    transform_train, transform_test = get_lung_transform(args)
     optimizer.zero_grad()
     for ix, (imgs, gts, original_sz, img_sz) in enumerate(pbar):
         orig_imgs = imgs.to(sam.device)
         gts = gts.to(sam.device)
-        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim), mode='bilinear', align_corners=True)
-        dense_embeddings = model(orig_imgs_small)
-        batched_input = get_input_dict(orig_imgs, original_sz, img_sz)
-        masks = norm_batch(sam_call(batched_input, sam, dense_embeddings))
-        loss = gen_step(optimizer, gts, masks, criterion, accumulation_steps=4, step=ix)
-        loss_list.append(loss)
-        pbar.set_description(
-            '(train | {}) epoch {epoch} ::'
-            ' loss {loss:.4f}'.format(
-                'Medical',
-                epoch=epoch,
-                loss=np.mean(loss_list)
-            ))
+        prediction_masks = torch.zeros(NumSliceDim, Idim, Idim)
+        og_masks = torch.zeros(NumSliceDim, Idim, Idim)
+        for slice in range(NumSliceDim):
+            orig_imgs_slice = orig_imgs [:,:,:,slice].unsqueeze(1)
+            orig_imgs_small = F.interpolate(orig_imgs_slice, (Idim, Idim), mode='bilinear', align_corners=True)
+            orig_imgs_small = orig_imgs_small * 1 / 3
+            orig_imgs_small = orig_imgs_small.repeat(1, 3, 1, 1)
+            current_slice = orig_imgs_small.squeeze()
+            current_slice = current_slice.permute(1, 2, 0)
+            mask_slice = gts[:,:,:,slice].squeeze()
+
+            dense_embeddings = model(orig_imgs_small)
+
+            orig_imgs_slice, mask_slice = transform_train(current_slice.cpu(), mask_slice.cpu())
+            original_sz = orig_imgs.shape[1:3]
+            orig_imgs_slice = sam_trans.apply_image_torch(orig_imgs_slice)
+            orig_imgs_slice = sam_trans.preprocess(orig_imgs_slice).cuda()
+            img_sz = orig_imgs_slice.shape[1:3]
+            img_sz = torch.tensor(img_sz).unsqueeze(0)
+            original_sz = torch.tensor(original_sz).unsqueeze(0)
+
+            batched_input = get_input_dict([orig_imgs_slice], [original_sz], [img_sz])
+            mask_pred = norm_batch(sam_call(batched_input, sam, dense_embeddings))
+
+            prediction_masks[slice,:,:] = mask_pred
+
+            loss = gen_step(optimizer, mask_slice.unsqueeze(0).cuda(), mask_pred, criterion, accumulation_steps=4, step=ix)
+            loss_list.append(loss)
+            pbar.set_description(
+                '(train | {}) epoch {epoch} ::'
+                ' loss {loss:.4f}'.format(
+                    'Medical',
+                    epoch=epoch,
+                    loss=np.mean(loss_list)
+                ))
+
+        mask_pred_np = mask_pred.detach().cpu().squeeze().squeeze().numpy()
+        mask_pred_np[mask_pred_np >0.5] = 1
+        mask_pred_np[mask_pred_np <=0.5] = 0
+        mask_slice_np = mask_slice.detach().cpu().numpy()
+        # Create a figure with two subplots (1 row, 2 columns)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+
+        # Display the first image in the first subplot
+        ax1.imshow(mask_slice_np, cmap='gray')
+        ax1.axis('off')  # Turn off axis
+        ax1.set_title('Ground truth mask')
+
+        # Display the second image in the second subplot
+        ax2.imshow(mask_pred_np, cmap='gray')
+        ax2.axis('off')  # Turn off axis
+        ax2.set_title('prediction mask')
+
+        # Display the images
+        plt.tight_layout()  # Adjust layout to avoid overlap
+        plt.show()
     return np.mean(loss_list)
 
 
-def inference_ds(ds, model, sam, transform, epoch, args):
+def inference_ds(ds, model, sam, sam_trans, epoch, args):
     pbar = tqdm(ds)
     model.eval()
     iou_list = []
     dice_list = []
     Idim = int(args['Idim'])
     NumSliceDim = int(args['NumSliceDim'])
+    transform_train, transform_test = get_lung_transform(args)
     for imgs, gts, original_sz, img_sz in pbar:
         orig_imgs = imgs.to(sam.device)
         gts = gts.to(sam.device)
-        orig_imgs_small = F.interpolate(orig_imgs, (Idim, Idim), mode='bilinear', align_corners=True)
-        dense_embeddings = model(orig_imgs_small)
-        batched_input = get_input_dict(orig_imgs, original_sz, img_sz)
-        masks = norm_batch(sam_call(batched_input, sam, dense_embeddings))
+        prediction_masks = torch.zeros(NumSliceDim, Idim, Idim)
+        og_masks = torch.zeros(NumSliceDim, Idim, Idim)
 
-        masks_test =  masks.squeeze()
-        masks_test = masks_test.squeeze()
+        for slice in range(NumSliceDim):
+            orig_imgs_slice = orig_imgs [:,:,:,slice].unsqueeze(0)
+            orig_imgs_small = F.interpolate(orig_imgs_slice, (Idim, Idim), mode='bilinear', align_corners=True)
+            orig_imgs_small = orig_imgs_small * 1 / 3
+            orig_imgs_small = orig_imgs_small.repeat(1, 3, 1, 1)
+            current_slice = orig_imgs_small.squeeze()
+            current_slice = current_slice.permute(1, 2, 0)
+            mask_slice = gts[:,:,:,slice].squeeze()
 
-        plt.imshow(masks_test.cpu().numpy())
-        plt.axis('off')  # Hide the axes
-        plt.title('mask display Example')
+            dense_embeddings = model(orig_imgs_small)
 
+            current_slice, mask_slice = transform_test(current_slice.cpu(), mask_slice.cpu())
+            original_sz = current_slice.shape[1:3]
+            current_slice = sam_trans.apply_image_torch(current_slice)
+            current_slice = sam_trans.preprocess(current_slice).cuda()
+            img_sz = current_slice.shape[1:3]
+            img_sz = torch.tensor(img_sz).unsqueeze(0)
+            original_sz = torch.tensor(original_sz).unsqueeze(0)
+
+            batched_input = get_input_dict([current_slice], [original_sz], [img_sz])
+            masks_pred = norm_batch(sam_call(batched_input, sam, dense_embeddings))
+
+            input_size = tuple([int(x) for x in img_sz[0].squeeze().tolist()])
+            original_size = tuple([int(x) for x in original_sz[0].squeeze().tolist()])
+            masks_pred = sam.postprocess_masks(masks_pred, input_size=input_size, original_size=original_size)
+            mask_slice = sam.postprocess_masks(mask_slice.unsqueeze(0).unsqueeze(1), input_size=input_size, original_size=original_size)
+            masks_pred = F.interpolate(masks_pred, (Idim, Idim), mode='bilinear', align_corners=True)
+            mask_slice = F.interpolate(mask_slice, (Idim, Idim), mode='nearest')
+            prediction_masks[slice,:,:] = masks_pred.squeeze()
+            og_masks[slice,:,:] = mask_slice.squeeze()
+
+        prediction_masks[prediction_masks > 0.5] = 1
+        prediction_masks[prediction_masks <= 0.5] = 0
+        prediction_masks = prediction_masks.permute(1, 2, 0)
+
+        prediction_masks_np = prediction_masks.detach().cpu().numpy()
+        gts_np = gts.squeeze().detach().cpu().numpy()
+
+        # Create a figure with two subplots (1 row, 2 columns)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+
+        # Display the first image in the first subplot
+        ax1.imshow(gts_np[:,:,35], cmap='gray')
+        ax1.axis('off')  # Turn off axis
+        ax1.set_title('Ground truth mask')
+
+        # Display the second image in the second subplot
+        ax2.imshow(prediction_masks_np[:,:,35],cmap='gray')
+        ax2.axis('off')  # Turn off axis
+        ax2.set_title('prediction mask')
+
+        # Display the images
+        plt.tight_layout()  # Adjust layout to avoid overlap
         plt.show()
 
-        input_size = tuple([int(x) for x in img_sz[0].squeeze().tolist()])
-        original_size = tuple([int(x) for x in original_sz[0].squeeze().tolist()])
-        masks = sam.postprocess_masks(masks, input_size=input_size, original_size=original_size)
-        gts = sam.postprocess_masks(gts.unsqueeze(dim=0), input_size=input_size, original_size=original_size)
-        masks = F.interpolate(masks, (Idim, Idim), mode='bilinear', align_corners=True)
-        gts = F.interpolate(gts, (Idim, Idim), mode='nearest')
-
-        masks_values = np.unique(masks.cpu().numpy())
-        masks_full = masks.squeeze()
-        masks_full = masks_full.squeeze()
-
-        plt.imshow(masks_full.cpu().numpy())
-        plt.axis('off')  # Hide the axes
-        plt.title('mask display Example')
-        plt.show()
-
-        masks[masks > 0.5] = 1
-        masks[masks <= 0.5] = 0
-
-        masks_s = masks.squeeze()
-        masks_s = masks_s.squeeze()
-        masks_s = masks_s.cpu().numpy()
-
-        gts_s = gts.squeeze()
-        gts_s = gts_s.squeeze()
-        gts_s = gts_s.cpu().numpy()
-
-        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-        # Display the image slice
-        axes[0].imshow(gts_s, cmap="gray")
-        axes[0].set_title("CT Scan Slice")
-        axes[0].axis("off")  # Hide axes
-
-        # Display the mask slice
-        # print(np.unique(mask_slice))
-        # mask_slice = np.where(mask_slice > 0.1, 1, 0).astype(np.float32)
-
-        axes[1].imshow(masks_s, cmap="gray")
-        axes[1].set_title("Segmentation Mask Slice")
-        axes[1].axis("off")  # Hide axes
-        plt.show()
-
-        '''
-        plt.imshow(masks_s)
-        plt.axis('off')  # Hide the axes
-        plt.title('mask display Example')
-        plt.show()
-        '''
-
-
-        dice, ji = get_dice_ji(masks.squeeze().detach().cpu().numpy(),
+        dice, ji = get_dice_ji(prediction_masks.detach().cpu().numpy(),
                                gts.squeeze().detach().cpu().numpy())
         iou_list.append(ji)
         dice_list.append(dice)
@@ -239,78 +282,6 @@ def sam_call(batched_input, sam, dense_embeddings):
         multimask_output=False,
     )
     return low_res_masks
-'''
-class LungSegmentationDataset(Dataset):
-    def __init__(self, image_paths, mask_paths,batch_size, transform=None):
-        self.image_paths = image_paths
-        self.mask_paths = mask_paths
-        self.transform = transform
-        self.batch_size = batch_size
-
-    def __len__(self):
-        return len(self.image_paths)
-
-    def __getitem__(self, idx):
-        # Load the image (CT scan)
-        image = nib.load(self.image_paths[idx]).get_fdata()  # Load image as numpy array
-        original_sz = image.shape
-        original_sz = (original_sz[0], original_sz[1],3)
-
-        image = zoom(image, (512/image.shape[0], 512/image.shape[1], 115/image.shape[2]))
-        img_sz = image.shape
-        img_sz = (img_sz[0], img_sz[1],3)
-        
-        # Load the mask (segmentation)
-        mask = nib.load(self.mask_paths[idx]).get_fdata()  # Load mask as numpy array
-        mask = zoom(mask,(512/mask.shape[0], 512/mask.shape[1],115/mask.shape[2]))
-        
-        # Normalize image to zero mean and unit variance
-        image = (image - np.mean(image)) / np.std(image)
-
-        # Ensure the mask is binary (either 0 or 1)
-        mask = np.where(mask > 0.1, 1, 0).astype(np.float32)
-        
-        num_slices = image.shape[2]  # Assuming that slices are along the 3rd dimension
-        
-        # Lists to hold image and mask slices
-        num_slices = 3
-        #image_slices = np.empty((num_slices, image.shape[0], image.shape[1]), dtype=np.float32)
-        #mask_slices = np.empty((num_slices, mask.shape[0], mask.shape[1]), dtype=np.float32)
-
-        image_slices = []  # Use a list instead of np.empty
-        mask_slices = []   # Use a list instead of np.empty
-
-        
-        for slice_idx in range(num_slices):
-            #image_slices[slice_idx] = image[:, :, 89+slice_idx]
-            #mask_slices[slice_idx] = mask[:, :, 89+slice_idx]
-
-            image_slices.append(image[:, :, 89+slice_idx])
-            mask_slices.append(mask[:, :, 89+slice_idx])
-
-        image_slices = np.array(image_slices) 
-        mask_slices = np.array(mask_slices)
-
-        image_slices = torch.tensor(image_slices, dtype=torch.float32) # Shape: [115, 1, H, W]
-        mask_slices = torch.tensor(mask_slices, dtype=torch.float32)  # Shape: [115, 1, H, W]
-        
-
-def split_and_load_dataset(image_dir, mask_dir, val_size, batch_size, transform=None):
-    image_paths = sorted([os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.endswith('.nii.gz') and not f.startswith('._')])
-    mask_paths = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('.nii.gz') and not f.startswith('._')])
-    
-    assert len(image_paths) == len(mask_paths), "The number of images and masks must be the same."
-    
-    train_images, test_images, train_masks, test_masks = train_test_split(image_paths, mask_paths, test_size=val_size, random_state=42)
-    
-    train_dataset = LungSegmentationDataset(train_images, train_masks,batch_size =3)
-    test_dataset = LungSegmentationDataset(test_images, test_masks,batch_size = 1)
-    
-    #train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    #test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-    
-    return train_dataset, test_dataset
-    '''
 
 def main(args=None, sam_args=None):
     if torch.cuda.is_available():
@@ -334,6 +305,10 @@ def main(args=None, sam_args=None):
     elif args['task'] == 'lung':
         trainset, testset = get_lung_dataset(args, sam_trans=transform)
 
+    if args.get('debug_mode', True):
+        single_sample = trainset[0]
+        trainset = SingleItemDataset(single_sample)
+        print("⚠ Debug mode: training with a single sample only.")
 
     #trainset, testset = split_and_load_dataset(args['dataset_path'], args['mask_path'], val_size=0.2, batch_size=int(args['Batch_size']),transform=transform)
     ds = torch.utils.data.DataLoader(trainset, batch_size=int(args['Batch_size']), shuffle=True,num_workers=int(args['nW']), drop_last=True)
@@ -358,9 +333,9 @@ def main(args=None, sam_args=None):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Description of your program')
-    parser.add_argument('-lr', '--learning_rate', default=0.001, help='learning_rate', required=False)
-    parser.add_argument('-bs', '--Batch_size', default=5, help='batch_size', required=False)
-    parser.add_argument('-epoches', '--epoches', default=10, help='number of epoches', required=False)
+    parser.add_argument('-lr', '--learning_rate', default=0.0003, help='learning_rate', required=False)
+    parser.add_argument('-bs', '--Batch_size', default=1, help='batch_size', required=False)
+    parser.add_argument('-epoches', '--epoches', default=30, help='number of epoches', required=False)
     parser.add_argument('-nW', '--nW', default=8, help='evaluation iteration', required=False)
     parser.add_argument('-nW_eval', '--nW_eval', default=8, help='evaluation iteration', required=False)
     parser.add_argument('-WD', '--WD', default=1e-4, help='evaluation iteration', required=False)
@@ -371,8 +346,8 @@ if __name__ == '__main__':
     
     parser.add_argument('-depth_wise', '--depth_wise', default=False, help='image size', required=False)
     parser.add_argument('-order', '--order', default=85, help='image size', required=False)
-    parser.add_argument('-Idim', '--Idim', default=512, help='image size', required=False)
-    parser.add_argument('-NumSliceDim', '--NumSliceDim', default=115, help='image size', required=False)
+    parser.add_argument('-Idim', '--Idim', default=256, help='image size', required=False)
+    parser.add_argument('-NumSliceDim', '--NumSliceDim', default=64, help='image size', required=False)
     parser.add_argument('-rotate', '--rotate', default=22, help='image size', required=False)
     parser.add_argument('-scale1', '--scale1', default=0.75, help='image size', required=False)
     parser.add_argument('-scale2', '--scale2', default=1.25, help='image size', required=False)
@@ -380,6 +355,8 @@ if __name__ == '__main__':
     os.makedirs('results', exist_ok=True)
     folder = open_folder('results')
     args['folder'] = folder
+    args['debug_mode'] = False
+
     args['path'] = os.path.join('results',
                                 'gpu' + folder,
                                 'net_last.pth')

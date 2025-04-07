@@ -17,6 +17,7 @@ import random
 import pickle
 import os
 import gc
+from tqdm import tqdm
 
 
 def cv2_loader(path, is_mask):
@@ -47,113 +48,83 @@ class ImageLoader(torch.utils.data.Dataset):
             self.imgs_root = os.path.join(self.root, 'Testing', 'img')
             self.masks_root = os.path.join(self.root, 'Testing', 'mask')
         self.paths = os.listdir(self.imgs_root)
+        self.mask_paths = os.listdir(self.masks_root)
         self.transform = transform
         self.target_transform = target_transform
         self.loader = loader
         self.train = train
         self.loops = loops
         self.sam_trans = sam_trans
-        self.image_mask_pairs = [
-            (os.path.join(self.imgs_root, file), os.path.join(self.masks_root, file.split('.')[0] + '.nii.gz'))
-            for file in self.paths
-        ]
+        self.all_volumes = self.preload_all_volumes_as_is(train=train)
         print('num of data:{}'.format(len(self.paths)))
+        print(f'Number of slices in the dataset: {len(self.all_volumes)}')
 
+    def preload_all_volumes_as_is(self, downscale_factor=(0.5, 0.5, 1.0), train=False):
+
+        cache_dir = '/media/cilab/DATA/Hila/Data/Projects/AutoSAM'
+        os.makedirs(cache_dir, exist_ok=True)
+        all_volumes = []
+
+        print("Loading full volumes and saving (with existence check):")
+        for file_idx, file_path in enumerate(tqdm(self.paths, desc="Loading full volumes")):
+            volume_pt_path = os.path.join(cache_dir, f"volume_{file_idx}.pt")
+
+            # ✅ Check if .pt file already exists
+            if os.path.exists(volume_pt_path):
+                print(f"⚡ Volume {file_idx} already cached. Skipping.")
+                volume_data = torch.load(volume_pt_path)
+                all_volumes.append(volume_data)
+                continue
+
+            # Load and process
+            img = self.loader(os.path.join(self.imgs_root, file_path), is_mask=False).astype(np.float32)
+            mask = self.loader(os.path.join(self.masks_root, self.mask_paths[file_idx]), is_mask=False).astype( np.float32)
+            mask = (mask == 6)
+            mask = mask.astype(float)
+
+            img = zoom(img, (256 / img.shape[0], 256 / img.shape[1], 64 / img.shape[2]))
+            mask = zoom(mask, (256 / mask.shape[0], 256 / mask.shape[1], 64 / mask.shape[2]))
+
+            '''
+            plt.imshow(mask[:, :, 30])
+            plt.show()
+
+            mask[mask > 0.5] = 1
+            mask[mask <= 0.5] = 0
+
+            fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+            # Display the image slice
+            axes[0].imshow(img[:, :, 30], cmap="gray")
+            axes[0].set_title("CT Scan Slice")
+            axes[0].axis("off")  # Hide axes
+
+            axes[1].imshow(mask[:, :, 30], cmap="gray")
+            axes[1].set_title("Segmentation Mask Slice")
+            axes[1].axis("off")  # Hide axes
+            plt.show()
+            '''
+
+            img_tensor = torch.tensor(img, dtype=torch.float32)
+            mask_tensor = torch.tensor(mask, dtype=torch.float32)
+            original_size = img.shape[0:2]
+            image_size = img.shape[0:2]
+
+            # Save .pt file
+            torch.save((img_tensor, mask_tensor, original_size, image_size), volume_pt_path)
+            print(f"💾 Saved volume tensor at: {volume_pt_path}")
+
+            all_volumes.append((img_tensor, mask_tensor, original_size, image_size))
+
+        print(f"✅ Done! Total volumes processed or loaded from cache: {len(all_volumes)}")
+        return all_volumes
 
 
     def __getitem__(self, index):
-        img_path, mask_path = self.image_mask_pairs[index % len(self.image_mask_pairs)]
-        img = self.loader(img_path, is_mask=False)
-        mask = self.loader(mask_path, is_mask=False)
-        mask = (mask == 6)
-        mask = mask.astype(float)
-        mask_values = np.unique(mask)
-
-        '''
-        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-        # Display the image slice
-        axes[0].imshow(img[:,:,50], cmap="gray")
-        axes[0].set_title("CT Scan Slice")
-        axes[0].axis("off")  # Hide axes
-
-        axes[1].imshow(mask[:,:,50], cmap="gray")
-        axes[1].set_title("Segmentation Mask Slice")
-        axes[1].axis("off")  # Hide axes
-        plt.show()  
-        '''
-
-        img = zoom(img, (256 / img.shape[0], 256 / img.shape[1], 92 / img.shape[2]))
-        mask = zoom(mask, (256 / mask.shape[0], 256 / mask.shape[1], 92 / mask.shape[2]))
-
-        mask[mask > 0.5] = 1
-        mask[mask <= 0.5] = 0
-
-        total_slices = img.shape[2]
-        slice_index = index % total_slices
-
-        img_slice = img[:, :, slice_index]
-        img_slice = (img_slice - np.mean(img_slice)) / np.std(img_slice)
-        mask_slice = mask[:, :, slice_index]
-
-
-        img_slice = np.stack([img_slice * 1 / 3] * 3, axis=-1)
-
-        '''
-        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-        # Display the image slice
-        axes[0].imshow(img_slice, cmap="gray")
-        axes[0].set_title("CT Scan Slice")
-        axes[0].axis("off")  # Hide axes
-
-        axes[1].imshow(mask_slice, cmap="gray")
-        axes[1].set_title("Segmentation Mask Slice")
-        axes[1].axis("off")  # Hide axes
-        plt.show()
-        '''
-
-        print(f"CT scan idx: {index % len(self.image_mask_pairs)} img_slice idx: {slice_index}")
-        img_slice, mask_slice = self.transform(img_slice, mask_slice)
-        original_size = tuple(img_slice.shape[1:3])  # (256, 256)
-        img_slice, mask_slice = self.sam_trans.apply_image_torch(img_slice), self.sam_trans.apply_image_torch(mask_slice)
-        image_size = tuple(img_slice.shape[1:3])  # (256, 256)
-
-
-        return self.sam_trans.preprocess(img_slice),self.sam_trans.preprocess(mask_slice),torch.Tensor(original_size),torch.Tensor(image_size)
-
-
-
-
-
-
-
-        '''
-        index = index % len(self.paths)
-        file_path = self.paths[index]
-        mask_path = file_path.split('.')[0] + '.nii.gz'
-        img = self.loader(os.path.join(self.imgs_root, file_path), is_mask=False)
-        mask = self.loader(os.path.join(self.masks_root, mask_path), is_mask=True)
-
-        img = zoom(img, (256 / img.shape[0], 256 / img.shape[1], 120 / img.shape[2]))
-        mask = zoom(mask, (256 / mask.shape[0], 256 / mask.shape[1], 120 / mask.shape[2]))
-
-
-        dataset_items = []
-        img  = np.stack([img[:,:,0]] * 3, axis=-1)
-        mask = mask[:,:,0]
-        img, mask = self.transform(img, mask)
-        original_size = tuple(img.shape[1:3])
-        img, mask = self.sam_trans.apply_image_torch(img), self.sam_trans.apply_image_torch(mask)
-        print(img.shape)
-        print(mask.shape)
-        mask[mask > 0.1] = 1
-        mask[mask <= 0.1] = 0
-        image_size = tuple(img.shape[1:3])
-        return self.sam_trans.preprocess(img), self.sam_trans.preprocess(mask), torch.Tensor(
-            original_size), torch.Tensor(image_size)
-        '''
+        img_tensor, mask_tensor, original_size, img_size = self.all_volumes[index % len(self.all_volumes)]
+        return img_tensor, mask_tensor, original_size, img_size
 
     def __len__(self):
-        return len(self.paths) * self.loops *92
+        return len(self.paths) * self.loops
 
 
 def get_lung_dataset(args, sam_trans):
